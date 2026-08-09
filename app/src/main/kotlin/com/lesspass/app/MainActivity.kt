@@ -479,6 +479,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
 fun SettingsScreen(dbManager: DatabaseManager) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var showClearDataDialog by remember { mutableStateOf(false) }
     var exportError by remember { mutableStateOf<String?>(null) }
     var moveError by remember { mutableStateOf<String?>(null) }
 
@@ -641,6 +642,21 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                     Icon(Icons.Filled.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("删除密码本并重置")
+                }
+                Spacer(Modifier.height(12.dp))
+                // 清除所有数据（保留密码本）
+                OutlinedButton(
+                    onClick = { showClearDataDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(4.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer,
+                        contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer
+                    )
+                ) {
+                    Icon(Icons.Filled.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("清除所有数据")
                 }
             }
         }

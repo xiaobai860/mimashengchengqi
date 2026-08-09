@@ -221,7 +221,8 @@ class DatabaseManager(private val context: Context) {
                 prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
             }
             val saved = saveDatabase()
-            Log.d("MimaDB", "createDatabase: saveDatabase returned $saved")
+            setHasDatabase(saved)
+            Log.d("MimaDB", "createDatabase: saved=$saved")
             true
         } catch (e: Exception) {
             Log.e("MimaDB", "createDatabase failed", e)
@@ -230,10 +231,24 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
-     * 用密码打开数据库。password 为空时直接打开（无加密）。
+     * 用密码打开数据库。优先尝试外部 URI → 内置 URI → 本地文件路径。
+     * password 为空时直接打开（无加密）。
      */
     fun openDatabase(password: String): Boolean {
         return try {
+            // 1. 优先尝试外部 URI（用户通过文件管理选择的 .kdbx）
+            val externalUri = dbExternalUri
+            if (externalUri != null) {
+                Log.d("MimaDB", "openDatabase: trying external URI=$externalUri")
+                if (openDatabaseByUri(externalUri, password)) return true
+            }
+            // 2. 尝试内置 URI（修改保存位置后）
+            val uri = dbUri
+            if (uri != null) {
+                Log.d("MimaDB", "openDatabase: trying URI=$uri")
+                if (openDatabaseByUri(uri, password)) return true
+            }
+            // 3. 回退到本地文件路径
             if (!dbFile.exists()) {
                 Log.d("MimaDB", "openDatabase: dbFile does not exist at ${dbFile.absolutePath}")
                 return false
@@ -258,8 +273,14 @@ class DatabaseManager(private val context: Context) {
             database = db
             isUnlocked = true
             savedMasterPassword = if (password.isNotEmpty()) password else null
-            // 校验并修正 db_display_path 缓存（URI 已更新但缓存路径未同步时修复）
+            setHasPassword(password.isNotEmpty())
+            if (!password.isNotEmpty()) {
+                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
+            } else {
+                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
+            }
             updateDisplayPath()
+            setHasDatabase(true)
             val rootEntries = db.rootGroup?.let { root ->
                 val all = mutableListOf<EntryKDBX>()
                 collectEntries(root, all)
@@ -286,12 +307,20 @@ class DatabaseManager(private val context: Context) {
      */
     fun changePassword(oldPassword: String, newPassword: String): Boolean {
         return try {
-            val db = database ?: return false
+            // 如果 database 为 null 但有密码保护，先尝试解锁
+            if (database == null && (hasPassword || !passwordNullOrBlank(savedMasterPassword))) {
+                val pw = savedMasterPassword ?: ""
+                if (oldPassword.isNotEmpty() && oldPassword != pw) {
+                    if (!openDatabase(oldPassword)) return false
+                } else {
+                    // 没有旧密码或密码为空，用当前保存的密码解锁
+                    if (!openDatabase(pw)) return false
+                }
+            }
 
-            // 验证旧密码（如果提供了且与当前密码不一致）
-            if (oldPassword.isNotEmpty() && hasPassword && oldPassword != savedMasterPassword) {
-                lock()
-                if (!openDatabase(oldPassword)) return false
+            val db = database ?: run {
+                Log.e("MimaDB", "changePassword: database is null")
+                return false
             }
 
             // 用新密码重新派生主密钥
@@ -299,20 +328,25 @@ class DatabaseManager(private val context: Context) {
                 val mc = MasterCredential(newPassword.toCharArray())
                 db.deriveMasterKey(mc, HardwareKeyNoOp)
             } else {
-                // 移除密码时，设置 masterKey 为全零（与 openDatabase 空密码行为一致）
                 db.masterKey = ByteArray(32)
             }
             savedMasterPassword = newPassword
             setHasPassword(newPassword.isNotEmpty())
+            if (!newPassword.isNotEmpty()) {
+                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
+            } else {
+                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
+            }
 
-            // 保存数据库（内部会自动用新密钥重新加密整个文件）
             saveDatabase()
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MimaDB", "changePassword failed", e)
             false
         }
     }
+
+    private fun passwordNullOrBlank(pw: String?): Boolean = pw.isNullOrBlank()
 
     /**
      * 保存数据库到文件
@@ -496,6 +530,26 @@ class DatabaseManager(private val context: Context) {
     /** 重置自动解锁状态（用于设置页面重置密码本） */
     fun resetAutoUnlock() {
         prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
+    }
+
+    /** 清除所有应用数据（共享偏好、缓存），保留密码本 kdbx 文件 */
+    fun clearAllData(): Boolean {
+        return try {
+            // 删除所有 SharedPreferences
+            prefs(context).edit().clear().apply()
+            // 删除缓存目录（不包括密码本文件）
+            context.cacheDir?.listFiles()?.forEach { file ->
+                if (file.name != "kdbx_export_*.kdbx") file.delete()
+            }
+            // 删除应用文件目录中的临时文件（保留 password_book.kdbx）
+            context.filesDir?.listFiles()?.forEach { file ->
+                if (file.name != "password_book.kdbx") file.delete()
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "clearAllData failed", e)
+            false
+        }
     }
 
     // ==================== 密码本操作 ====================
