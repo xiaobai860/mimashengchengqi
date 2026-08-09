@@ -1,7 +1,10 @@
 package com.lesspass.app.data
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
+import android.util.Log
 import com.kunzisoft.keepass.database.crypto.kdf.KdfFactory
 import com.kunzisoft.keepass.database.element.MasterCredential
 import com.kunzisoft.keepass.database.element.database.DatabaseKDBX
@@ -34,6 +37,7 @@ class DatabaseManager(private val context: Context) {
         private const val PREF_NAME = "app_prefs"
         private const val KEY_HAS_PASSWORD = "has_password"
         private const val KEY_DB_PATH = "db_path"
+        private const val KEY_DB_URI = "db_uri"
         private const val KEY_HAS_DB = "has_db"
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
 
@@ -44,6 +48,13 @@ class DatabaseManager(private val context: Context) {
     private val defaultDbFile: File
         get() = File(context.filesDir, "password_book.kdbx")
 
+    /** 优先使用 URI（从文件选择器选取），否则回退到文件路径 */
+    private val dbUri: Uri?
+        get() {
+            val uriStr = prefs(context).getString(KEY_DB_URI, null)
+            return if (!uriStr.isNullOrBlank()) Uri.parse(uriStr) else null
+        }
+
     private val dbFile: File
         get() = File(prefs(context).getString(KEY_DB_PATH, defaultDbFile.absolutePath) ?: defaultDbFile.absolutePath)
 
@@ -53,7 +64,7 @@ class DatabaseManager(private val context: Context) {
 
     val unlocked: Boolean get() = isUnlocked
     val filePath: String get() = dbFile.absolutePath
-    val exists: Boolean get() = dbFile.exists()
+    val exists: Boolean get() = dbFile.exists() || dbUri != null
     val masterPasswordValue: String? get() = savedMasterPassword
     val hasPassword: Boolean get() = prefs(context).getBoolean(KEY_HAS_PASSWORD, false)
     val hasDatabase: Boolean get() = prefs(context).getBoolean(KEY_HAS_DB, false)
@@ -68,6 +79,59 @@ class DatabaseManager(private val context: Context) {
 
     private fun setDbPath(path: String) {
         prefs(context).edit().putString(KEY_DB_PATH, path).apply()
+        prefs(context).edit().remove(KEY_DB_URI).apply()
+    }
+
+    /** 用 URI 打开数据库（适用于文件选择器选取的文件） */
+    private fun openDatabaseByUri(uri: Uri, password: String): Boolean {
+        return try {
+            val db = DatabaseKDBX()
+            val input = DatabaseInputKDBX(db)
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                input.openDatabase(
+                    stream,
+                    null,
+                    assignMasterKey = {
+                        if (password.isNotEmpty()) {
+                            val mc = MasterCredential(password.toCharArray())
+                            db.deriveMasterKey(mc, HardwareKeyNoOp)
+                        }
+                    }
+                )
+            }
+            database = db
+            isUnlocked = true
+            savedMasterPassword = if (password.isNotEmpty()) password else null
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "openDatabaseByUri failed", e)
+            isUnlocked = false
+            database = null
+            savedMasterPassword = null
+            false
+        }
+    }
+
+    /** 用 URI 保存数据库 */
+    private fun saveDatabaseByUri(uri: Uri): Boolean {
+        return try {
+            val db = database ?: return false
+            val rootEntries = db.rootGroup?.let { root ->
+                val all = mutableListOf<EntryKDBX>()
+                collectEntries(root, all)
+                all.size
+            } ?: 0
+            Log.d("MimaDB", "saveDatabaseByUri: start, entries=$rootEntries")
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                val output = DatabaseOutputKDBX(db)
+                output.writeDatabase(out) { }
+            }
+            Log.d("MimaDB", "saveDatabaseByUri: success")
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "saveDatabaseByUri failed", e)
+            false
+        }
     }
 
     /**
@@ -94,10 +158,11 @@ class DatabaseManager(private val context: Context) {
             isUnlocked = true
             savedMasterPassword = if (password.isNotEmpty()) password else null
             setHasDatabase(true)
-            saveDatabase()
+            val saved = saveDatabase()
+            Log.d("MimaDB", "createDatabase: saveDatabase returned $saved")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MimaDB", "createDatabase failed", e)
             false
         }
     }
@@ -107,7 +172,11 @@ class DatabaseManager(private val context: Context) {
      */
     fun openDatabase(password: String): Boolean {
         return try {
-            if (!dbFile.exists()) return false
+            if (!dbFile.exists()) {
+                Log.d("MimaDB", "openDatabase: dbFile does not exist at ${dbFile.absolutePath}")
+                return false
+            }
+            Log.d("MimaDB", "openDatabase: dbFile size=${dbFile.length()} at ${dbFile.absolutePath}")
 
             val db = DatabaseKDBX()
             val input = DatabaseInputKDBX(db)
@@ -127,9 +196,15 @@ class DatabaseManager(private val context: Context) {
             database = db
             isUnlocked = true
             savedMasterPassword = if (password.isNotEmpty()) password else null
+            val rootEntries = db.rootGroup?.let { root ->
+                val all = mutableListOf<EntryKDBX>()
+                collectEntries(root, all)
+                all.size
+            } ?: 0
+            Log.d("MimaDB", "openDatabase: success, total entries loaded=$rootEntries")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MimaDB", "openDatabase failed", e)
             isUnlocked = false
             database = null
             savedMasterPassword = null
@@ -181,13 +256,20 @@ class DatabaseManager(private val context: Context) {
     fun saveDatabase(): Boolean {
         return try {
             val db = database ?: return false
+            val rootEntries = db.rootGroup?.let { root ->
+                val all = mutableListOf<EntryKDBX>()
+                collectEntries(root, all)
+                all.size
+            } ?: 0
+            Log.d("MimaDB", "saveDatabase: start, total entries in memory=$rootEntries, masterKey set=${db.masterKey != null}, kdfParams set=${db.kdfParameters != null}")
             FileOutputStream(dbFile).use { stream ->
                 val output = DatabaseOutputKDBX(db)
                 output.writeDatabase(stream) { /* reuse existing key */ }
             }
+            Log.d("MimaDB", "saveDatabase: success, file size=${dbFile.length()}")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MimaDB", "saveDatabase failed", e)
             false
         }
     }
@@ -228,7 +310,41 @@ class DatabaseManager(private val context: Context) {
             setDbPath(newPath)
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MimaDB", "moveDatabase failed", e)
+            false
+        }
+    }
+
+    /** 用 URI 迁移数据库（从文件选择器选取目标） */
+    fun moveDatabaseByUri(newUri: Uri): Boolean {
+        return try {
+            // 先保存当前数据库
+            if (database != null) {
+                saveDatabase()
+            }
+            // 如果有 URI 路径，也保存一次
+            val uri = dbUri
+            if (uri != null && uri != newUri) {
+                saveDatabaseByUri(uri)
+            }
+            // 把本地文件复制到目标 URI（如果本地文件存在）
+            if (dbFile.exists()) {
+                context.contentResolver.openOutputStream(newUri)?.use { out ->
+                    dbFile.inputStream().use { it.copyTo(out) }
+                }
+            }
+            // 持久化新 URI
+            prefs(context).edit()
+                .putString(KEY_DB_URI, newUri.toString())
+                .apply()
+            // 申请持久化权限
+            context.contentResolver.takePersistableUriPermission(
+                newUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "moveDatabaseByUri failed", e)
             false
         }
     }

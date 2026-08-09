@@ -3,12 +3,17 @@ package com.lesspass.app
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ShareCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -471,8 +476,56 @@ fun GenerateScreen(dbManager: DatabaseManager) {
 fun SettingsScreen(dbManager: DatabaseManager) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
-    var showMoveDialog by remember { mutableStateOf(false) }
+    var exportError by remember { mutableStateOf<String?>(null) }
+    var moveError by remember { mutableStateOf<String?>(null) }
+
+    // 选择保存位置（使用系统文件选择器）
+    val pickMoveFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) { moveError = null; return@rememberLauncherForActivityResult }
+        // 确保有读写权限
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        if (dbManager.moveDatabaseByUri(uri)) {
+            Toast.makeText(context, "文件位置已修改", Toast.LENGTH_SHORT).show()
+            moveError = null
+        } else {
+            moveError = "修改失败"
+        }
+    }
+
+    // 导出为新文件（系统保存对话框 + 分享面板）
+    val createExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != android.app.Activity.RESULT_OK) {
+            exportError = null; return@rememberLauncherForActivityResult
+        }
+        val uri: Uri? = result.data?.data
+        if (uri == null) { exportError = null; return@rememberLauncherForActivityResult }
+        try {
+            val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
+            val output = com.kunzisoft.keepass.database.file.output.DatabaseOutputKDBX(db)
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                output.writeDatabase(out) { }
+            }
+            // 导出成功后弹出系统分享面板
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/octet-stream"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "分享 KDBX 文件"))
+            Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
+            exportError = null
+        } catch (e: Exception) {
+            exportError = "导出失败：${e.message}"
+            e.printStackTrace()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -508,26 +561,39 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             Text(if (dbManager.hasPassword) "修改 KDBX 密码" else "设置 KDBX 密码")
         }
 
-        // 修改文件位置
+        // 修改文件位置（用文件选择器）
         OutlinedButton(
-            onClick = { showMoveDialog = true },
+            onClick = { pickMoveFileLauncher.launch(arrayOf("*/*")) },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)
         ) {
-            Icon(Icons.Filled.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("修改文件保存位置")
         }
+        moveError?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        }
 
-        // 导出文件
+        // 导出 KDBX 文件（用系统保存对话框 + 分享）
         OutlinedButton(
-            onClick = { showExportDialog = true },
+            onClick = {
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/octet-stream"
+                    putExtra(Intent.EXTRA_TITLE, "password_book.kdbx")
+                }
+                createExportLauncher.launch(intent)
+            },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)
         ) {
-            Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("导出 KDBX 文件")
+        }
+        exportError?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
     }
 
@@ -535,18 +601,6 @@ fun SettingsScreen(dbManager: DatabaseManager) {
         ChangePasswordDialog(
             dbManager = dbManager,
             onDismiss = { showChangePasswordDialog = false }
-        )
-    }
-    if (showExportDialog) {
-        ExportDialog(
-            dbManager = dbManager,
-            onDismiss = { showExportDialog = false }
-        )
-    }
-    if (showMoveDialog) {
-        MoveDatabaseDialog(
-            dbManager = dbManager,
-            onDismiss = { showMoveDialog = false }
         )
     }
 }
@@ -625,106 +679,7 @@ private fun ChangePasswordDialog(
     )
 }
 
-@Composable
-private fun ExportDialog(
-    dbManager: DatabaseManager,
-    onDismiss: () -> Unit,
-) {
-    val context = LocalContext.current
-    var targetPath by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("导出 KDBX 文件") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = targetPath,
-                    onValueChange = { targetPath = it },
-                    label = { Text("目标路径") },
-                    placeholder = { Text("例如: /sdcard/password_book.kdbx") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (targetPath.isBlank()) {
-                        errorMessage = "请输入目标路径"
-                        return@TextButton
-                    }
-                    if (dbManager.exportDatabase(targetPath)) {
-                        Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
-                        onDismiss()
-                    } else {
-                        errorMessage = "导出失败"
-                    }
-                },
-                enabled = targetPath.isNotBlank()
-            ) {
-                Text("导出")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
-}
-
-@Composable
-private fun MoveDatabaseDialog(
-    dbManager: DatabaseManager,
-    onDismiss: () -> Unit,
-) {
-    val context = LocalContext.current
-    var newPath by remember { mutableStateOf(dbManager.filePath) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("修改文件保存位置") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("当前路径:", style = MaterialTheme.typography.bodySmall)
-                Text(dbManager.filePath, style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(
-                    value = newPath,
-                    onValueChange = { newPath = it },
-                    label = { Text("新路径") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (newPath.isBlank()) {
-                        errorMessage = "请输入新路径"
-                        return@TextButton
-                    }
-                    if (dbManager.moveDatabase(newPath)) {
-                        Toast.makeText(context, "文件位置已修改", Toast.LENGTH_SHORT).show()
-                        onDismiss()
-                    } else {
-                        errorMessage = "修改失败"
-                    }
-                },
-                enabled = newPath.isNotBlank()
-            ) {
-                Text("确认")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
-}
 
 @Composable
 private fun OptionItem(text: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
