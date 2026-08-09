@@ -1,0 +1,26 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties.choccy-classpath-init.gradle
+.choccy-classpath-init.gradle
+.choccy/
+
+# Android / Gradle build caches
+app/build/
+build/
+.kotlin/
+kls-classpath
+.kls-classpath
+.orbit/
+gradle-local.properties
+
+# IDE
+*.iml
+.idea/
+local.properties

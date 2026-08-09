@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">密码生成器</string>
+    <!-- Titles -->
+    <string name="title">密码生成器</string>
+    <string name="subtitle">无状态密码管理器 — 记住一个主密码</string>
+    <!-- Fields -->
+    <string name="site">网站</string>
+    <string name="login">用户名</string>
+    <string name="master_password">主密码</string>
+    <!-- Options -->
+    <string name="lowercase">小写</string>
+    <string name="uppercase">大写</string>
+    <string name="digits">数字</string>
+    <string name="symbols">符号</string>
+    <string name="length">长度</string>
+    <string name="counter">计数器</string>
+    <!-- Buttons -->
+    <string name="generate">生成密码</string>
+    <string name="clear">清空</string>
+    <string name="copy">复制</string>
+    <string name="show">显示</string>
+    <string name="hide">隐藏</string>
+    <!-- Messages -->
+    <string name="site_required">请填写网站地址</string>
+    <string name="master_password_required">请填写主密码</string>
+    <string name="copied">已复制到剪贴板</string>
+</resources>
