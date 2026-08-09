@@ -45,6 +45,7 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_HAS_DB = "has_db"
         private const val KEY_AUTO_UNLOCK = "auto_unlock"
         private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
+        private const val KEY_CURRENT_DB_FILE = "current_db_file"
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
 
         private fun prefs(context: Context): SharedPreferences =
@@ -77,6 +78,11 @@ class DatabaseManager(private val context: Context) {
 
     val unlocked: Boolean get() = isUnlocked
     val autoUnlock: Boolean get() = prefs(context).getBoolean(KEY_AUTO_UNLOCK, false)
+    /** 当前已选中的密码本文件路径 */
+    val currentKdbxFile: File? get() {
+        val path = prefs(context).getString(KEY_CURRENT_DB_FILE, null)
+        return if (!path.isNullOrBlank()) File(path) else null
+    }
     /** 计算并缓存可读路径 */
     private fun updateDisplayPath() {
         val uri = dbUri
@@ -518,6 +524,100 @@ class DatabaseManager(private val context: Context) {
             false
         }
     }
+
+    /**
+     * 选择密码本文件并解锁。
+     * 会持久化当前选中文件的 URI 和路径，确保后续保存操作写入正确文件。
+     */
+    fun selectKdbxFile(uri: Uri, password: String?): Boolean {
+        return try {
+            val db = DatabaseKDBX()
+            val input = DatabaseInputKDBX(db)
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                input.openDatabase(
+                    stream,
+                    null,
+                    assignMasterKey = {
+                        if (!password.isNullOrBlank()) {
+                            val mc = MasterCredential(password.toCharArray())
+                            db.deriveMasterKey(mc, HardwareKeyNoOp)
+                        }
+                    }
+                )
+            } ?: return false
+            database = db
+            isUnlocked = true
+            savedMasterPassword = if (!password.isNullOrBlank()) password else null
+            setHasPassword(!password.isNullOrBlank())
+            // 持久化：同时更新 dbUri 和 currentDbFile
+            prefs(context).edit()
+                .putString(KEY_DB_URI, uri.toString())
+                .putString(KEY_DB_EXTERNAL_URI, uri.toString())
+                .putString(KEY_DB_DISPLAY_PATH, computeDisplayPath(uri))
+                .putString(KEY_CURRENT_DB_FILE, uri.path ?: uri.toString())
+                .apply()
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            updateDisplayPath()
+            setHasDatabase(true)
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "selectKdbxFile failed", e)
+            isUnlocked = false
+            database = null
+            savedMasterPassword = null
+            false
+        }
+    }
+
+    /** 删除指定的密码本文件，返回是否成功 */
+    fun deleteKdbxFile(file: File): Boolean {
+        return try {
+            // 如果是当前选中的文件，先清除引用
+            if (currentKdbxFile?.absolutePath == file.absolutePath) {
+                prefs(context).edit()
+                    .remove(KEY_CURRENT_DB_FILE)
+                    .remove(KEY_DB_EXTERNAL_URI)
+                    .apply()
+            }
+            file.delete()
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "deleteKdbxFile failed", e)
+            false
+        }
+    }
+
+    /**
+     * 列出指定目录下所有 .kdbx 文件信息。
+     * 包含：文件名、完整路径、URI（文件 URI）、是否有密码保护
+     */
+    fun listKdbxFiles(folder: File): List<KdbxFileInfo> {
+        return folder.listFiles { _, name -> name.endsWith(".kdbx", ignoreCase = true) }
+            ?.mapNotNull { file ->
+                try {
+                    val uri = android.net.Uri.fromFile(file)
+                    KdbxFileInfo(
+                        name = file.name,
+                        path = file.absolutePath,
+                        uri = uri,
+                        hasPassword = false // 需要实际打开才能判断，默认 false
+                    )
+                } catch (e: Exception) {
+                    Log.e("MimaDB", "listKdbxFiles error for ${file.name}", e)
+                    null
+                }
+            }?.sortedBy { it.name } ?: emptyList()
+    }
+
+    data class KdbxFileInfo(
+        val name: String,
+        val path: String,
+        val uri: Uri,
+        val hasPassword: Boolean,
+    )
 
     /**
      * 锁定数据库
