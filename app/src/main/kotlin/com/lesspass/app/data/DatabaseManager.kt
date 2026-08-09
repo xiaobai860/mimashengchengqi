@@ -43,6 +43,8 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_DB_URI = "db_uri"
         private const val KEY_DB_DISPLAY_PATH = "db_display_path"
         private const val KEY_HAS_DB = "has_db"
+        private const val KEY_AUTO_UNLOCK = "auto_unlock"
+        private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
 
         private fun prefs(context: Context): SharedPreferences =
@@ -59,6 +61,13 @@ class DatabaseManager(private val context: Context) {
             return if (!uriStr.isNullOrBlank()) Uri.parse(uriStr) else null
         }
 
+    /** 外部密码本文件的 URI（用户通过文件选择器选取的 .kdbx） */
+    private val dbExternalUri: Uri?
+        get() {
+            val uriStr = prefs(context).getString(KEY_DB_EXTERNAL_URI, null)
+            return if (!uriStr.isNullOrBlank()) Uri.parse(uriStr) else null
+        }
+
     private val dbFile: File
         get() = File(prefs(context).getString(KEY_DB_PATH, defaultDbFile.absolutePath) ?: defaultDbFile.absolutePath)
 
@@ -67,6 +76,7 @@ class DatabaseManager(private val context: Context) {
     private var savedMasterPassword: String? = null
 
     val unlocked: Boolean get() = isUnlocked
+    val autoUnlock: Boolean get() = prefs(context).getBoolean(KEY_AUTO_UNLOCK, false)
     /** 计算并缓存可读路径 */
     private fun updateDisplayPath() {
         val uri = dbUri
@@ -86,6 +96,7 @@ class DatabaseManager(private val context: Context) {
         }
     }
 
+    /** 当前使用的密码本文件路径（外部或内置） */
     val filePath: String get() = prefs(context).getString(KEY_DB_DISPLAY_PATH, null)
         ?: dbUri?.let { uri ->
             val fullPath = java.net.URLDecoder.decode(uri.path ?: return@let dbFile.absolutePath, "UTF-8")
@@ -203,7 +214,12 @@ class DatabaseManager(private val context: Context) {
             database = db
             isUnlocked = true
             savedMasterPassword = if (password.isNotEmpty()) password else null
-            setHasDatabase(true)
+            setHasPassword(password.isNotEmpty())
+            if (!password.isNotEmpty()) {
+                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
+            } else {
+                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
+            }
             val saved = saveDatabase()
             Log.d("MimaDB", "createDatabase: saveDatabase returned $saved")
             true
@@ -426,12 +442,60 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 用 URI 打开外部 .kdbx 文件。
+     * password 为空表示无密码，若文件实际有密码则返回 false。
+     */
+    fun openExternalKdbx(uri: Uri, password: String?): Boolean {
+        return try {
+            val db = DatabaseKDBX()
+            val input = DatabaseInputKDBX(db)
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                input.openDatabase(
+                    stream,
+                    null,
+                    assignMasterKey = {
+                        if (!password.isNullOrBlank()) {
+                            val mc = MasterCredential(password!!.toCharArray())
+                            db.deriveMasterKey(mc, HardwareKeyNoOp)
+                        }
+                    }
+                )
+            } ?: return false
+            database = db
+            isUnlocked = true
+            savedMasterPassword = if (!password.isNullOrBlank()) password else null
+            setHasPassword(!password.isNullOrBlank())
+            // 持久化外部文件 URI（不覆盖内置文件路径）
+            prefs(context).edit()
+                .putString(KEY_DB_EXTERNAL_URI, uri.toString())
+                .apply()
+            // 申请持久化权限
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "openExternalKdbx failed", e)
+            isUnlocked = false
+            database = null
+            savedMasterPassword = null
+            false
+        }
+    }
+
+    /**
      * 锁定数据库
      */
     fun lock() {
         database = null
         isUnlocked = false
         savedMasterPassword = null
+    }
+
+    /** 重置自动解锁状态（用于设置页面重置密码本） */
+    fun resetAutoUnlock() {
+        prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
     }
 
     // ==================== 密码本操作 ====================

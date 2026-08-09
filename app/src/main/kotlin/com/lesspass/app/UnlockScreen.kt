@@ -32,7 +32,7 @@ fun UnlockScreen(
     onUnlocked: () -> Unit,
 ) {
     val context = LocalContext.current
-    var masterPassword by remember { mutableStateOf("") }
+    var databasePassword by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -63,16 +63,16 @@ fun UnlockScreen(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            if (hasDatabase) "输入主密码解锁（可留空）" else "创建新密码本（密码可留空）",
+            if (hasDatabase) "输入密码本密码解锁（可留空）" else "创建新密码本（密码可留空）",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(
-            value = masterPassword,
-            onValueChange = { masterPassword = it },
-            label = { Text("主密码（留空表示不加密）") },
+            value = databasePassword,
+            onValueChange = { databasePassword = it },
+            label = { Text("密码本密码（留空表示不加密）") },
             singleLine = true,
             visualTransformation = if (showPassword) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -95,9 +95,9 @@ fun UnlockScreen(
                 context = context,
                 dbManager = dbManager,
                 executor = executor,
-                masterPassword = masterPassword,
+                databasePassword = databasePassword,
                 onUnlocked = {
-                    if (dbManager.openDatabase(masterPassword)) {
+                    if (dbManager.openDatabase(databasePassword)) {
                         onUnlocked()
                     } else {
                         errorMessage = "密码错误，请重试"
@@ -115,14 +115,14 @@ fun UnlockScreen(
                 errorMessage = null
 
                 if (hasDatabase) {
-                    if (dbManager.openDatabase(masterPassword)) {
+                    if (dbManager.openDatabase(databasePassword)) {
                         onUnlocked()
                     } else {
                         isLoading = false
                         errorMessage = "密码错误，请重试"
                     }
                 } else {
-                    if (dbManager.createDatabase(masterPassword)) {
+                    if (dbManager.createDatabase(databasePassword)) {
                         onUnlocked()
                     } else {
                         isLoading = false
@@ -154,7 +154,7 @@ private fun BiometricButton(
     context: Context,
     dbManager: DatabaseManager,
     executor: Executor,
-    masterPassword: String,
+    databasePassword: String,
     onUnlocked: () -> Unit,
     onFailed: () -> Unit,
 ) {

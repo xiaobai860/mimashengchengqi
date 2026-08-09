@@ -58,7 +58,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val context = LocalContext.current
                     val dbManager = remember { DatabaseManager(context) }
-                    var isUnlocked by remember { mutableStateOf(dbManager.unlocked) }
+                    // 无密码密码本自动解锁
+                    val autoUnlock = remember { dbManager.autoUnlock }
+                    var isUnlocked by remember(autoUnlock) { mutableStateOf(dbManager.unlocked || autoUnlock) }
                     val timeoutManager = remember { TimeoutManager(dbManager, onLock = { isUnlocked = false }) }
 
                     if (!isUnlocked) {
@@ -480,6 +482,23 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     var exportError by remember { mutableStateOf<String?>(null) }
     var moveError by remember { mutableStateOf<String?>(null) }
 
+    // 选择外部 .kdbx 文件（用于密码本文件管理）
+    var showKdbxUnlockDialog by remember { mutableStateOf<Uri?>(null) }
+    val pickKdbxLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (!dbManager.hasPassword) {
+            if (dbManager.openExternalKdbx(uri, null)) {
+                Toast.makeText(context, "已切换到密码本文件", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "打开失败", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            showKdbxUnlockDialog = uri
+        }
+    }
+
     // 选择目标文件夹（使用系统文件夹选择器 OpenDocumentTree）
     val pickMoveFolderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -586,6 +605,59 @@ fun SettingsScreen(dbManager: DatabaseManager) {
         exportError?.let {
             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
+
+        // ==================== 密码本文件管理 ====================
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            tonalElevation = 1.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("密码本文件管理", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text("当前文件: ${dbManager.filePath}", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(12.dp))
+                // 选择外部 .kdbx 文件
+                OutlinedButton(
+                    onClick = { pickKdbxLauncher.launch(arrayOf("application/octet-stream", "text/*", "*/*")) },
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("选择密码本文件")
+                }
+                Spacer(Modifier.height(8.dp))
+                // 重置为内置密码本
+                OutlinedButton(
+                    onClick = {
+                        dbManager.resetAutoUnlock()
+                        dbManager.lock()
+                        Toast.makeText(context, "已重置密码本，请重新启动应用", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Icon(Icons.Filled.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("删除密码本并重置")
+                }
+            }
+        }
+
+        // 外部文件密码输入对话框
+        showKdbxUnlockDialog?.let { uri ->
+            ExternalKdbxPasswordDialog(
+                uri = uri,
+                dbManager = dbManager,
+                context = context,
+                onDismiss = { showKdbxUnlockDialog = null },
+                onSuccess = {
+                    Toast.makeText(context, "已切换到密码本文件", Toast.LENGTH_SHORT).show()
+                    showKdbxUnlockDialog = null
+                }
+            )
+        }
     }
 
     if (showChangePasswordDialog) {
@@ -594,6 +666,50 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             onDismiss = { showChangePasswordDialog = false }
         )
     }
+}
+
+/** 外部 KDBX 文件密码输入对话框 */
+@Composable
+private fun ExternalKdbxPasswordDialog(
+    uri: Uri,
+    dbManager: DatabaseManager,
+    context: android.content.Context,
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("输入密码本密码") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("密码本密码（可留空）") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                )
+                error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    if (dbManager.openExternalKdbx(uri, password)) {
+                        onSuccess()
+                    } else {
+                        error = "密码错误，请重试"
+                    }
+                }
+            ) { Text("确认") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }
 
 @Composable
