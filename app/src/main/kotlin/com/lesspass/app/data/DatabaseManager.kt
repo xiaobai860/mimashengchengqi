@@ -67,17 +67,37 @@ class DatabaseManager(private val context: Context) {
     private var savedMasterPassword: String? = null
 
     val unlocked: Boolean get() = isUnlocked
+    /** 计算并缓存可读路径 */
+    private fun updateDisplayPath() {
+        val uri = dbUri
+        val current = prefs(context).getString(KEY_DB_DISPLAY_PATH, null)
+        val computed = uri?.let { u ->
+            val fullPath = java.net.URLDecoder.decode(u.path ?: return@let null, "UTF-8")
+            val segments = fullPath.split("/").filter { it.isNotEmpty() }
+            val treeIdx = segments.indexOf("tree")
+            if (treeIdx >= 0 && treeIdx + 1 < segments.size) {
+                val docId = segments.subList(treeIdx + 1, segments.size).joinToString("/").removePrefix("primary:")
+                "内部存储/$docId/"
+            } else null
+        }
+        if (computed != null && current != computed) {
+            prefs(context).edit().putString(KEY_DB_DISPLAY_PATH, computed).apply()
+            Log.d("MimaDB", "updateDisplayPath: $current -> $computed")
+        }
+    }
+
     val filePath: String get() = prefs(context).getString(KEY_DB_DISPLAY_PATH, null)
         ?: dbUri?.let { uri ->
-            // 从 tree URI 提取可读路径，如 "Download/密码本/" → "内部存储/Download/密码本/"
-            val pathSegments = uri.path?.split("/")?.filter { it.isNotEmpty() } ?: emptyList()
+            val fullPath = java.net.URLDecoder.decode(uri.path ?: return@let dbFile.absolutePath, "UTF-8")
+            val pathSegments = fullPath.split("/").filter { it.isNotEmpty() }
             val treeIdx = pathSegments.indexOf("tree")
             if (treeIdx >= 0 && treeIdx + 1 < pathSegments.size) {
-                val docId = java.net.URLDecoder.decode(pathSegments[treeIdx + 1], "UTF-8")
+                // 过滤掉 DocumentProvider 的卷标识符（如 primary:）
+                val docId = pathSegments.subList(treeIdx + 1, pathSegments.size)
+                    .joinToString("/")
+                    .removePrefix("primary:")
                 "内部存储/$docId/"
-            } else {
-                uri.toString()
-            }
+            } else uri.toString()
         } ?: dbFile.absolutePath
     val exists: Boolean get() = dbFile.exists() || dbUri != null
     val masterPasswordValue: String? get() = savedMasterPassword
@@ -96,6 +116,16 @@ class DatabaseManager(private val context: Context) {
         prefs(context).edit().putString(KEY_DB_PATH, path).apply()
         prefs(context).edit().remove(KEY_DB_URI).apply()
         prefs(context).edit().remove(KEY_DB_DISPLAY_PATH).apply()
+    }
+
+    /** 从 URI 计算可读路径 */
+    private fun computeDisplayPath(uri: Uri): String {
+        val fullPath = java.net.URLDecoder.decode(uri.path ?: return uri.toString(), "UTF-8")
+        val segments = fullPath.split("/").filter { it.isNotEmpty() }
+        val treeIdx = segments.indexOf("tree")
+        return if (treeIdx >= 0 && treeIdx + 1 < segments.size) {
+            "内部存储/${segments.subList(treeIdx + 1, segments.size).joinToString("/")}/"
+        } else uri.toString()
     }
 
     /** 用 URI 打开数据库（适用于文件选择器选取的文件） */
@@ -212,6 +242,8 @@ class DatabaseManager(private val context: Context) {
             database = db
             isUnlocked = true
             savedMasterPassword = if (password.isNotEmpty()) password else null
+            // 校验并修正 db_display_path 缓存（URI 已更新但缓存路径未同步时修复）
+            updateDisplayPath()
             val rootEntries = db.rootGroup?.let { root ->
                 val all = mutableListOf<EntryKDBX>()
                 collectEntries(root, all)
@@ -373,19 +405,14 @@ class DatabaseManager(private val context: Context) {
                 }
             }
             // 提取可读路径并存入 SharedPreferences
-            val pathSegments = folderUri.path?.split("/")?.filter { it.isNotEmpty() } ?: emptyList()
-            val treeIdx = pathSegments.indexOf("tree")
-            val displayPath = if (treeIdx >= 0 && treeIdx + 1 < pathSegments.size) {
-                val docId = java.net.URLDecoder.decode(pathSegments[treeIdx + 1], "UTF-8")
-                "内部存储/$docId/"
-            } else {
-                folderUri.toString()
-            }
+            val displayPath = computeDisplayPath(folderUri)
             // 持久化新文件夹 URI
             prefs(context).edit()
                 .putString(KEY_DB_URI, folderUri.toString())
                 .putString(KEY_DB_DISPLAY_PATH, displayPath)
                 .apply()
+            // 立即刷新缓存（确保 UI 即时更新）
+            updateDisplayPath()
             // 申请持久化权限
             context.contentResolver.takePersistableUriPermission(
                 folderUri,
