@@ -53,6 +53,7 @@ android {
  
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.documentfile)
     implementation(project(":crypto"))
     implementation(project(":database"))
     implementation("androidx.biometric:biometric:1.1.0")

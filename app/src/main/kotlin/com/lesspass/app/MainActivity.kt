@@ -8,6 +8,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -479,12 +480,12 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     var exportError by remember { mutableStateOf<String?>(null) }
     var moveError by remember { mutableStateOf<String?>(null) }
 
-    // 选择保存位置（使用系统文件选择器）
-    val pickMoveFileLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+    // 选择目标文件夹（使用系统文件夹选择器 OpenDocumentTree）
+    val pickMoveFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri == null) { moveError = null; return@rememberLauncherForActivityResult }
-        // 确保有读写权限
+        // 确保有持久化读写权限
         context.contentResolver.takePersistableUriPermission(
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -494,36 +495,6 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             moveError = null
         } else {
             moveError = "修改失败"
-        }
-    }
-
-    // 导出为新文件（系统保存对话框 + 分享面板）
-    val createExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != android.app.Activity.RESULT_OK) {
-            exportError = null; return@rememberLauncherForActivityResult
-        }
-        val uri: Uri? = result.data?.data
-        if (uri == null) { exportError = null; return@rememberLauncherForActivityResult }
-        try {
-            val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
-            val output = com.kunzisoft.keepass.database.file.output.DatabaseOutputKDBX(db)
-            context.contentResolver.openOutputStream(uri)?.use { out ->
-                output.writeDatabase(out) { }
-            }
-            // 导出成功后弹出系统分享面板
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "application/octet-stream"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(shareIntent, "分享 KDBX 文件"))
-            Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
-            exportError = null
-        } catch (e: Exception) {
-            exportError = "导出失败：${e.message}"
-            e.printStackTrace()
         }
     }
 
@@ -561,9 +532,9 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             Text(if (dbManager.hasPassword) "修改 KDBX 密码" else "设置 KDBX 密码")
         }
 
-        // 修改文件位置（用文件选择器）
+        // 修改文件位置（用文件夹选择器）
         OutlinedButton(
-            onClick = { pickMoveFileLauncher.launch(arrayOf("*/*")) },
+            onClick = { pickMoveFolderLauncher.launch(null) },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)
         ) {
@@ -575,15 +546,35 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
 
-        // 导出 KDBX 文件（用系统保存对话框 + 分享）
+        // 导出 KDBX 文件（直接分享，无需先选保存位置）
         OutlinedButton(
             onClick = {
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "application/octet-stream"
-                    putExtra(Intent.EXTRA_TITLE, "password_book.kdbx")
+                try {
+                    val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
+                    // 在内存中生成 KDBX 字节数组
+                    val baos = java.io.ByteArrayOutputStream()
+                    dbManager.exportToOutputStream(baos)
+                    val bytes = baos.toByteArray()
+                    // 写入临时文件供分享
+                    val tempFile = File.createTempFile("kdbx_export_", ".kdbx", context.cacheDir)
+                    tempFile.writeBytes(bytes)
+                    // 构建分享 Intent
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/octet-stream"
+                        val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            tempFile
+                        )
+                        putExtra(Intent.EXTRA_STREAM, fileUri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "分享 KDBX 文件"))
+                    exportError = null
+                } catch (e: Exception) {
+                    exportError = "导出失败：${e.message}"
+                    e.printStackTrace()
                 }
-                createExportLauncher.launch(intent)
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)

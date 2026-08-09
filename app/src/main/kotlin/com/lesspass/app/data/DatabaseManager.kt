@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
+import android.webkit.MimeTypeMap
+import androidx.documentfile.provider.DocumentFile
 import com.kunzisoft.keepass.database.crypto.kdf.KdfFactory
 import com.kunzisoft.keepass.database.element.MasterCredential
 import com.kunzisoft.keepass.database.element.database.DatabaseKDBX
@@ -16,6 +18,7 @@ import com.kunzisoft.keepass.utils.UnsignedInt
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
 
 /**
  * 密码本数据库管理器 — 基于 KeePassDX 的 KDBX 引擎。
@@ -38,6 +41,7 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_HAS_PASSWORD = "has_password"
         private const val KEY_DB_PATH = "db_path"
         private const val KEY_DB_URI = "db_uri"
+        private const val KEY_DB_DISPLAY_PATH = "db_display_path"
         private const val KEY_HAS_DB = "has_db"
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
 
@@ -63,7 +67,18 @@ class DatabaseManager(private val context: Context) {
     private var savedMasterPassword: String? = null
 
     val unlocked: Boolean get() = isUnlocked
-    val filePath: String get() = dbFile.absolutePath
+    val filePath: String get() = prefs(context).getString(KEY_DB_DISPLAY_PATH, null)
+        ?: dbUri?.let { uri ->
+            // 从 tree URI 提取可读路径，如 "Download/密码本/" → "内部存储/Download/密码本/"
+            val pathSegments = uri.path?.split("/")?.filter { it.isNotEmpty() } ?: emptyList()
+            val treeIdx = pathSegments.indexOf("tree")
+            if (treeIdx >= 0 && treeIdx + 1 < pathSegments.size) {
+                val docId = java.net.URLDecoder.decode(pathSegments[treeIdx + 1], "UTF-8")
+                "内部存储/$docId/"
+            } else {
+                uri.toString()
+            }
+        } ?: dbFile.absolutePath
     val exists: Boolean get() = dbFile.exists() || dbUri != null
     val masterPasswordValue: String? get() = savedMasterPassword
     val hasPassword: Boolean get() = prefs(context).getBoolean(KEY_HAS_PASSWORD, false)
@@ -80,6 +95,7 @@ class DatabaseManager(private val context: Context) {
     private fun setDbPath(path: String) {
         prefs(context).edit().putString(KEY_DB_PATH, path).apply()
         prefs(context).edit().remove(KEY_DB_URI).apply()
+        prefs(context).edit().remove(KEY_DB_DISPLAY_PATH).apply()
     }
 
     /** 用 URI 打开数据库（适用于文件选择器选取的文件） */
@@ -275,6 +291,21 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 将数据库写入指定输出流（用于内存生成文件后分享/保存）
+     */
+    fun exportToOutputStream(out: java.io.OutputStream): Boolean {
+        return try {
+            val db = database ?: return false
+            val output = DatabaseOutputKDBX(db)
+            output.writeDatabase(out) { }
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "exportToOutputStream failed", e)
+            false
+        }
+    }
+
+    /**
      * 导出 KDBX 文件到指定路径
      */
     fun exportDatabase(targetPath: String): Boolean {
@@ -315,8 +346,8 @@ class DatabaseManager(private val context: Context) {
         }
     }
 
-    /** 用 URI 迁移数据库（从文件选择器选取目标） */
-    fun moveDatabaseByUri(newUri: Uri): Boolean {
+    /** 用文件夹 URI 迁移数据库（从文件夹选择器选取目标目录） */
+    fun moveDatabaseByUri(folderUri: Uri): Boolean {
         return try {
             // 先保存当前数据库
             if (database != null) {
@@ -324,22 +355,40 @@ class DatabaseManager(private val context: Context) {
             }
             // 如果有 URI 路径，也保存一次
             val uri = dbUri
-            if (uri != null && uri != newUri) {
+            if (uri != null && uri != folderUri) {
                 saveDatabaseByUri(uri)
             }
-            // 把本地文件复制到目标 URI（如果本地文件存在）
-            if (dbFile.exists()) {
-                context.contentResolver.openOutputStream(newUri)?.use { out ->
-                    dbFile.inputStream().use { it.copyTo(out) }
+            // 用 DocumentFile 在目标文件夹中创建文件（兼容性更好）
+            val parentDir = DocumentFile.fromTreeUri(context, folderUri)
+                ?: throw IOException("无法访问目标文件夹")
+            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension("kdbx") ?: "application/octet-stream"
+            val newFile = parentDir.createFile(mimeType, "password_book.kdbx")
+                ?: throw IOException("无法在目标文件夹中创建文件")
+            // 把当前数据库数据写入新文件
+            if (database != null) {
+                val db = database!!
+                context.contentResolver.openOutputStream(newFile.uri)?.use { out ->
+                    val output = DatabaseOutputKDBX(db)
+                    output.writeDatabase(out) { }
                 }
             }
-            // 持久化新 URI
+            // 提取可读路径并存入 SharedPreferences
+            val pathSegments = folderUri.path?.split("/")?.filter { it.isNotEmpty() } ?: emptyList()
+            val treeIdx = pathSegments.indexOf("tree")
+            val displayPath = if (treeIdx >= 0 && treeIdx + 1 < pathSegments.size) {
+                val docId = java.net.URLDecoder.decode(pathSegments[treeIdx + 1], "UTF-8")
+                "内部存储/$docId/"
+            } else {
+                folderUri.toString()
+            }
+            // 持久化新文件夹 URI
             prefs(context).edit()
-                .putString(KEY_DB_URI, newUri.toString())
+                .putString(KEY_DB_URI, folderUri.toString())
+                .putString(KEY_DB_DISPLAY_PATH, displayPath)
                 .apply()
             // 申请持久化权限
             context.contentResolver.takePersistableUriPermission(
-                newUri,
+                folderUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
             true
