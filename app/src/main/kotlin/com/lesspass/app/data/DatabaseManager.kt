@@ -307,13 +307,14 @@ class DatabaseManager(private val context: Context) {
      */
     fun changePassword(oldPassword: String, newPassword: String): Boolean {
         return try {
-            // 如果 database 为 null 但有密码保护，先尝试解锁
-            if (database == null && (hasPassword || !passwordNullOrBlank(savedMasterPassword))) {
+            // 如果 database 为 null，尝试自动解锁
+            if (database == null) {
                 val pw = savedMasterPassword ?: ""
-                if (oldPassword.isNotEmpty() && oldPassword != pw) {
+                // 如果有旧密码且与当前保存的不一致，用旧密码解锁
+                if (oldPassword.isNotEmpty() && hasPassword && oldPassword != pw) {
                     if (!openDatabase(oldPassword)) return false
                 } else {
-                    // 没有旧密码或密码为空，用当前保存的密码解锁
+                    // 无密码或密码匹配，用保存的密码解锁
                     if (!openDatabase(pw)) return false
                 }
             }
