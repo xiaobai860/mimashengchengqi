@@ -566,10 +566,14 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                                     (fileInfo.isFromSaf && fileInfo.uri.toString() == dbManager.listFolderUri?.toString()),
                                 onSelect = { showKdbxFilePasswordDialog = fileInfo },
                                 onDelete = {
+                                    android.util.Log.d("MimaDB", "onDelete clicked: name=${fileInfo.name}, isFromSaf=${fileInfo.isFromSaf}, uri=${fileInfo.uri}")
                                     if (fileInfo.isFromSaf) {
-                                        dbManager.deleteKdbxFileByUri(fileInfo.uri)
+                                        val success = dbManager.deleteKdbxFileByUri(fileInfo.uri)
+                                        android.util.Log.d("MimaDB", "onDelete: deleteSaf result=$success")
                                     } else {
-                                        dbManager.deleteKdbxFile(File(fileInfo.path))
+                                        val f = File(fileInfo.path)
+                                        android.util.Log.d("MimaDB", "onDelete: deleteLocal path=${f.absolutePath}, exists=${f.exists()}")
+                                        dbManager.deleteKdbxFile(f)
                                     }
                                     refreshFileList()
                                 }

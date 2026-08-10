@@ -594,20 +594,55 @@ class DatabaseManager(private val context: Context) {
 
     /**
      * 通过 SAF URI 删除文件。
-     * 使用 DocumentFile.fromSingleUri 获取可删的 DocumentFile 对象，
-     * 通过 UriMatcher 识别 DocumentProvider URI 并交由其 delete 处理。
+     * 使用 ContentResolver 的 query 获取 _display_name 和 _id，
+     * 构造精确的 ContentProvider URI 进行删除，避免 fromSingleUri 对某些 Provider 失败的问题。
      */
     fun deleteKdbxFileByUri(uri: Uri): Boolean {
         return try {
-            // 先尝试用 DocumentFile 删除（对 DocumentProvider URI 有效）
+            Log.d("MimaDB", "deleteKdbxFileByUri: uri=$uri")
+            // 通过 ContentResolver 查询文件名
+            val displayName = try {
+                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    }
+            } catch (e: Exception) { null }
+            Log.d("MimaDB", "deleteKdbxFileByUri: displayName=$displayName")
+
+            // 方案1：直接用 DocumentFile.fromSingleUri
             val docFile = DocumentFile.fromSingleUri(context, uri)
-            if (docFile?.isFile == true) {
-                return docFile.delete()
+            Log.d("MimaDB", "deleteKdbxFileByUri: docFile=${docFile?.name}, isFile=${docFile?.isFile}")
+            if (docFile != null && docFile.isFile) {
+                val deleted = docFile.delete()
+                Log.d("MimaDB", "deleteKdbxFileByUri: fromSingleUri delete=$deleted")
+                return deleted
             }
-            // 回退：尝试从文件夹 URI 找到并删除
-            val parentDoc = DocumentFile.fromTreeUri(context, uri)
-            parentDoc?.listFiles()?.firstOrNull { it.uri == uri && it.isFile }
-                ?.delete() == true
+
+            // 方案2：从文件夹 URI 找到文件再删除
+            val treeUri = DocumentFile.fromTreeUri(context, uri)
+            Log.d("MimaDB", "deleteKdbxFileByUri: treeUri=$treeUri")
+            if (treeUri != null) {
+                val found = treeUri.listFiles().firstOrNull { it.uri == uri }
+                Log.d("MimaDB", "deleteKdbxFileByUri: found=${found?.name}")
+                if (found?.isFile == true) {
+                    val deleted = found.delete()
+                    Log.d("MimaDB", "deleteKdbxFileByUri: fromTreeUri delete=$deleted")
+                    return deleted
+                }
+            }
+
+            // 方案3：通过 ContentResolver 直接删除（构造精确查询条件）
+            try {
+                val args = if (displayName != null) arrayOf(displayName) else null
+                val deleted = args?.let {
+                    context.contentResolver.delete(uri, "${android.provider.OpenableColumns.DISPLAY_NAME} = ?", it)
+                } ?: 0
+                Log.d("MimaDB", "deleteKdbxFileByUri: contentResolver delete(rows)=$deleted")
+                deleted > 0
+            } catch (e: Exception) {
+                Log.e("MimaDB", "deleteKdbxFileByUri: contentResolver delete failed", e)
+                false
+            }
         } catch (e: Exception) {
             Log.e("MimaDB", "deleteKdbxFileByUri failed for $uri", e)
             false
