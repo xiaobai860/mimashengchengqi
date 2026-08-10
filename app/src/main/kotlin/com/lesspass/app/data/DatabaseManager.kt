@@ -83,6 +83,8 @@ class DatabaseManager(private val context: Context) {
         val path = prefs(context).getString(KEY_CURRENT_DB_FILE, null)
         return if (!path.isNullOrBlank()) File(path) else null
     }
+    /** 通过 SAF 选取的文件夹 URI（非 SAF 场景为 null） */
+    val listFolderUri: Uri? get() = dbUri
     /** 计算并缓存可读路径 */
     private fun updateDisplayPath() {
         val uri = dbUri
@@ -591,6 +593,18 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 通过 ContentResolver 删除 SAF URI 指向的文件。
+     */
+    fun deleteKdbxFileByUri(uri: Uri): Boolean {
+        return try {
+            context.contentResolver.delete(uri, null, null) ?: 0 > 0
+        } catch (e: Exception) {
+            Log.e("MimaDB", "deleteKdbxFileByUri failed for $uri", e)
+            false
+        }
+    }
+
+    /**
      * 列出密码本文件夹中所有 .kdbx 文件。
      * 优先使用 SAF URI 路径，回退到本地文件路径。
      */
@@ -678,6 +692,7 @@ class DatabaseManager(private val context: Context) {
         val hasPassword: Boolean,
         val size: Long = 0L,
         val modifiedAt: Long = 0L,
+        val isFromSaf: Boolean = false,
     )
 
     /**

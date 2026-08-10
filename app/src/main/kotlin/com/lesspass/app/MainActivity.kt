@@ -562,11 +562,15 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                         kdbxFileList.forEach { fileInfo ->
                             KdbxFileEntry(
                                 fileInfo = fileInfo,
-                                isCurrent = fileInfo.path == dbManager.currentKdbxFile?.absolutePath,
+                                isCurrent = fileInfo.path == dbManager.currentKdbxFile?.absolutePath ||
+                                    (fileInfo.isFromSaf && fileInfo.uri.toString() == dbManager.listFolderUri?.toString()),
                                 onSelect = { showKdbxFilePasswordDialog = fileInfo },
                                 onDelete = {
-                                    val f = File(fileInfo.path)
-                                    dbManager.deleteKdbxFile(f)
+                                    if (fileInfo.isFromSaf) {
+                                        dbManager.deleteKdbxFileByUri(fileInfo.uri)
+                                    } else {
+                                        dbManager.deleteKdbxFile(File(fileInfo.path))
+                                    }
                                     refreshFileList()
                                 }
                             )
