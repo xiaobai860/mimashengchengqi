@@ -29,7 +29,7 @@
 ### 安全特性
 - 本地运行，无任何网络请求，不上传任何数据
 - 主密码不落地存储，仅保存在内存中
-- 支持生物识别（指纹）解锁密码本
+- 支持生物识别（仅指纹）解锁密码本
 - 会话超时自动锁定，防止他人在解锁状态下查看
 - 密码本文件可存储在本地
 
@@ -68,7 +68,7 @@
 
 ### 2. KeePassDX
 
-**项目地址**: https://github.com/keepassxreboot/keepassdx
+**项目地址**: https://github.com/Kunzisoft/KeePassDX
 
 **引用内容**:
 - **加密底层模块 (`crypto`)**: 移植自 KeePassDX 的加密工具库，用于 KDBX 文件的加解密操作：
