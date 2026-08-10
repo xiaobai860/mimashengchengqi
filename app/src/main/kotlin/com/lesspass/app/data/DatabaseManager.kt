@@ -591,6 +591,19 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 列出密码本文件夹中所有 .kdbx 文件。
+     * 优先使用 SAF URI 路径，回退到本地文件路径。
+     */
+    fun listKdbxFiles(): List<KdbxFileInfo> {
+        val folderUri = dbUri
+        if (folderUri != null) {
+            return listKdbxFilesByUri(folderUri)
+        }
+        val folder = currentKdbxFile?.parentFile ?: defaultDbFile.parentFile ?: context.filesDir
+        return listKdbxFiles(folder)
+    }
+
+    /**
      * 列出指定目录下所有 .kdbx 文件信息。
      * 包含：文件名、完整路径、URI（文件 URI）、是否有密码保护
      */
@@ -614,11 +627,57 @@ class DatabaseManager(private val context: Context) {
             }?.sortedBy { it.name } ?: emptyList()
     }
 
+    /**
+     * 通过 SAF URI 列出文件夹内所有 .kdbx 文件。
+     * 使用 DocumentFile 配合 ContentResolver 获取文件元数据。
+     */
+    fun listKdbxFilesByUri(folderUri: Uri): List<KdbxFileInfo> {
+        return try {
+            val parent = DocumentFile.fromTreeUri(context, folderUri)
+                ?: return emptyList()
+            parent.listFiles()
+                .filter { it.isFile && it.name?.endsWith(".kdbx", ignoreCase = true) == true }
+                .mapNotNull { docFile ->
+                    try {
+                        val size = try {
+                            context.contentResolver.query(
+                                docFile.uri,
+                                arrayOf(
+                                    android.provider.OpenableColumns.DISPLAY_NAME,
+                                    android.provider.OpenableColumns.SIZE
+                                ),
+                                null, null, null
+                            )?.use { cursor ->
+                                if (cursor.moveToFirst()) cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.SIZE))
+                                else 0L
+                            } ?: 0L
+                        } catch (_: Exception) { 0L }
+                        KdbxFileInfo(
+                            name = docFile.name ?: "unknown.kdbx",
+                            path = docFile.uri.toString(),
+                            uri = docFile.uri,
+                            hasPassword = false,
+                            size = size,
+                            modifiedAt = docFile.lastModified(),
+                        )
+                    } catch (e: Exception) {
+                        Log.e("MimaDB", "listKdbxFilesByUri error for ${docFile.name}", e)
+                        null
+                    }
+                }?.sortedBy { it.name } ?: emptyList()
+        } catch (e: Exception) {
+            Log.e("MimaDB", "listKdbxFilesByUri failed", e)
+            emptyList()
+        }
+    }
+
     data class KdbxFileInfo(
         val name: String,
         val path: String,
         val uri: Uri,
         val hasPassword: Boolean,
+        val size: Long = 0L,
+        val modifiedAt: Long = 0L,
     )
 
     /**

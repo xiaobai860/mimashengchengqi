@@ -492,8 +492,7 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     var showKdbxFilePasswordDialog by remember { mutableStateOf<KdbxFileInfo?>(null) }
 
     fun refreshFileList() {
-        val folder = dbManager.currentKdbxFile?.parentFile ?: context.filesDir
-        kdbxFileList = dbManager.listKdbxFiles(folder)
+        kdbxFileList = dbManager.listKdbxFiles()
     }
     LaunchedEffect(dbManager.unlocked) { refreshFileList() }
 
