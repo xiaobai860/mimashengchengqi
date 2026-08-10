@@ -562,8 +562,8 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                         kdbxFileList.forEach { fileInfo ->
                             KdbxFileEntry(
                                 fileInfo = fileInfo,
-                                isCurrent = fileInfo.path == dbManager.currentKdbxFile?.absolutePath ||
-                                    fileInfo.uri.toString().startsWith("content://"),
+                                isCurrent = fileInfo.uri == dbManager.currentKdbxUri ||
+                                    fileInfo.path == dbManager.currentKdbxFile?.absolutePath,
                                 onSelect = { showKdbxFilePasswordDialog = fileInfo },
                                 onDelete = {
                                     android.util.Log.d("MimaDB", "onDelete clicked: name=${fileInfo.name}, isFromSaf=${fileInfo.isFromSaf}, uri=${fileInfo.uri}")

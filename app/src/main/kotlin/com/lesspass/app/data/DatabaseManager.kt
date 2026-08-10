@@ -85,6 +85,8 @@ class DatabaseManager(private val context: Context) {
     }
     /** 通过 SAF 选取的文件夹 URI（非 SAF 场景为 null） */
     val listFolderUri: Uri? get() = dbUri
+    /** 当前打开/选中的密码本文件 URI（仅 SAF 文件有值） */
+    val currentKdbxUri: Uri? get() = dbExternalUri
     /** 计算并缓存可读路径 */
     private fun updateDisplayPath() {
         val uri = dbUri
