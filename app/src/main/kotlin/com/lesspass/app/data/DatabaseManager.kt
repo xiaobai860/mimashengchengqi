@@ -107,19 +107,27 @@ class DatabaseManager(private val context: Context) {
     }
 
     /** 当前使用的密码本文件路径（外部或内置） */
-    val filePath: String get() = prefs(context).getString(KEY_DB_DISPLAY_PATH, null)
-        ?: dbUri?.let { uri ->
-            val fullPath = java.net.URLDecoder.decode(uri.path ?: return@let dbFile.absolutePath, "UTF-8")
-            val pathSegments = fullPath.split("/").filter { it.isNotEmpty() }
-            val treeIdx = pathSegments.indexOf("tree")
-            if (treeIdx >= 0 && treeIdx + 1 < pathSegments.size) {
-                // 过滤掉 DocumentProvider 的卷标识符（如 primary:）
-                val docId = pathSegments.subList(treeIdx + 1, pathSegments.size)
-                    .joinToString("/")
-                    .removePrefix("primary:")
-                "内部存储/$docId/"
-            } else uri.toString()
-        } ?: dbFile.absolutePath
+    val filePath: String get() {
+        // 优先使用缓存的显示路径
+        val cachedPath = prefs(context).getString(KEY_DB_DISPLAY_PATH, null)
+        if (!cachedPath.isNullOrBlank() && !cachedPath.contains("document/")) {
+            return cachedPath
+        }
+        
+        // 如果缓存路径包含 document/（错误存储），重新计算
+        val uri = dbUri
+        if (uri != null) {
+            val computedPath = computeDisplayPath(uri)
+            // 更新缓存
+            prefs(context).edit()
+                .putString(KEY_DB_DISPLAY_PATH, computedPath)
+                .apply()
+            return computedPath
+        }
+        
+        // 回退到本地文件路径
+        return dbFile.absolutePath
+    }
     val exists: Boolean get() = dbFile.exists() || dbUri != null
     val masterPasswordValue: String? get() = savedMasterPassword
     val hasPassword: Boolean get() = prefs(context).getBoolean(KEY_HAS_PASSWORD, false)
@@ -139,14 +147,34 @@ class DatabaseManager(private val context: Context) {
         prefs(context).edit().remove(KEY_DB_DISPLAY_PATH).apply()
     }
 
-    /** 从 URI 计算可读路径 */
+    /** 从 URI 计算可读路径（支持文件夹 URI 和文件 URI） */
     private fun computeDisplayPath(uri: Uri): String {
-        val fullPath = java.net.URLDecoder.decode(uri.path ?: return uri.toString(), "UTF-8")
+        val path = uri.path ?: return uri.toString()
+        val fullPath = java.net.URLDecoder.decode(path, "UTF-8")
         val segments = fullPath.split("/").filter { it.isNotEmpty() }
+        
+        // 查找 tree（文件夹 URI）或 document（文件 URI）标识
         val treeIdx = segments.indexOf("tree")
-        return if (treeIdx >= 0 && treeIdx + 1 < segments.size) {
-            "内部存储/${segments.subList(treeIdx + 1, segments.size).joinToString("/")}/"
-        } else uri.toString()
+        val docIdx = segments.indexOf("document")
+        
+        // 确定起始索引
+        val startIdx: Int = when {
+            treeIdx >= 0 -> treeIdx + 1
+            docIdx >= 0 -> docIdx + 1
+            else -> return uri.toString()
+        }
+        
+        if (startIdx >= segments.size) return uri.toString()
+        
+        val remaining = segments.subList(startIdx, segments.size).toMutableList()
+        // 移除 primary: 前缀
+        if (remaining.isNotEmpty() && remaining[0].startsWith("primary:")) {
+            remaining[0] = remaining[0].removePrefix("primary:")
+        } else if (remaining.isNotEmpty() && remaining[0].startsWith("secondary:")) {
+            remaining[0] = remaining[0].removePrefix("secondary:")
+        }
+        
+        return "内部存储/${remaining.joinToString("/")}"
     }
 
     /** 用 URI 打开数据库（适用于文件选择器选取的文件） */
@@ -439,7 +467,356 @@ class DatabaseManager(private val context: Context) {
         }
     }
 
-    /** 用文件夹 URI 迁移数据库（从文件夹选择器选取目标目录） */
+    /**
+     * 清除旧路径配置（保留当前选中文件的 URI）
+     * @param keepExternalUri 是否保留外部文件 URI（用于迁移场景）
+     */
+    fun clearOldPaths(keepExternalUri: Boolean = false) {
+        val currentExternalUri = if (keepExternalUri) prefs(context).getString(KEY_DB_EXTERNAL_URI, null) else null
+        val currentDbFile = if (keepExternalUri) prefs(context).getString(KEY_CURRENT_DB_FILE, null) else null
+        prefs(context).edit().apply {
+            remove(KEY_DB_PATH)
+            remove(KEY_DB_DISPLAY_PATH)
+            if (!keepExternalUri) {
+                remove(KEY_DB_EXTERNAL_URI)
+                remove(KEY_CURRENT_DB_FILE)
+            } else {
+                currentExternalUri?.let { putString(KEY_DB_EXTERNAL_URI, it) }
+                currentDbFile?.let { putString(KEY_CURRENT_DB_FILE, it) }
+            }
+            apply()
+        }
+        Log.d("MimaDB", "clearOldPaths: keepExternalUri=$keepExternalUri")
+    }
+
+    /**
+     * 修复错误存储的 KEY_DB_URI（之前可能被错误地存储为文件 URI）
+     * 如果 KEY_DB_URI 以 "document/" 开头（文件 URI），而不是 "tree/"（文件夹 URI），
+     * 则将其清除或从 KEY_DB_EXTERNAL_URI 恢复正确的文件夹路径
+     */
+    fun fixInvalidDbUriIfNeeded() {
+        try {
+            val dbUriStr = prefs(context).getString(KEY_DB_URI, null)
+            Log.d("MimaDB", "fixInvalidDbUriIfNeeded: dbUriStr=$dbUriStr")
+            if (dbUriStr == null) {
+                Log.d("MimaDB", "fixInvalidDbUriIfNeeded: no dbUri, skipping")
+                return
+            }
+            
+            val uri = Uri.parse(dbUriStr)
+            val path = uri.path ?: run {
+                Log.d("MimaDB", "fixInvalidDbUriIfNeeded: no path, skipping")
+                return
+            }
+            Log.d("MimaDB", "fixInvalidDbUriIfNeeded: path=$path")
+            
+            // 检查是否为文件 URI（路径中包含 /document/）
+            if (path.contains("/document/")) {
+                Log.w("MimaDB", "fixInvalidDbUriIfNeeded: KEY_DB_URI was incorrectly stored as file URI, fixing...")
+                
+                // 先清除错误的显示路径
+                prefs(context).edit()
+                    .remove(KEY_DB_DISPLAY_PATH)
+                    .apply()
+                
+                // 如果同时有外部文件 URI，从文件 URI 推断文件夹 URI
+                val extUriStr = prefs(context).getString(KEY_DB_EXTERNAL_URI, null)
+                if (extUriStr != null) {
+                    val extUri = Uri.parse(extUriStr)
+                    val extPath = extUri.path ?: ""
+                    
+                    // 从文件路径推断文件夹路径
+                    // 文件路径格式: /document/primary:Download/密码本/file.kdbx
+                    // 文件夹路径格式: /tree/primary:Download/密码本
+                    val docIdx = extPath.indexOf("/document/")
+                    if (docIdx >= 0) {
+                        val beforeDoc = extPath.substring(0, docIdx)
+                        val afterDoc = extPath.substring(docIdx + "/document/".length)
+                        val segments = afterDoc.split("/").filter { it.isNotEmpty() }
+                        // 移除最后一段（文件名），剩余部分为文件夹
+                        val folderSegments = segments.dropLast(1)
+                        if (folderSegments.isNotEmpty()) {
+                            val folderPath = "$beforeDoc/tree/${folderSegments.joinToString("/")}"
+                            val fixedUri = uri.buildUpon().path(folderPath).build()
+                            Log.d("MimaDB", "fixInvalidDbUriIfNeeded: fixed to $fixedUri")
+                            
+                            prefs(context).edit()
+                                .putString(KEY_DB_URI, fixedUri.toString())
+                                .apply()
+                            
+                            // 更新显示路径
+                            val displayPath = computeDisplayPath(fixedUri)
+                            prefs(context).edit()
+                                .putString(KEY_DB_DISPLAY_PATH, displayPath)
+                                .apply()
+                            return
+                        }
+                    }
+                }
+                
+                // 如果无法推断，清除错误的 URI（用户需要重新选择文件夹）
+                Log.w("MimaDB", "fixInvalidDbUriIfNeeded: clearing invalid KEY_DB_URI, user needs to re-select")
+                prefs(context).edit()
+                    .remove(KEY_DB_URI)
+                    .remove(KEY_DB_DISPLAY_PATH)
+                    .apply()
+            }
+        } catch (e: Exception) {
+            Log.e("MimaDB", "fixInvalidDbUriIfNeeded failed", e)
+        }
+    }
+
+    /**
+     * 检查目标文件夹中是否存在同名文件，返回可用的文件名
+     * @param folderUri 目标文件夹 URI
+     * @param originalName 原始文件名
+     * @return 可用的文件名（如 originalName, originalName(1), originalName(2)...）
+     */
+    fun getAvailableFileName(folderUri: Uri, originalName: String): String {
+        try {
+            val parent = DocumentFile.fromTreeUri(context, folderUri)
+            if (parent == null) return originalName
+            val existingNames = parent.listFiles()
+                .filter { it.isFile && it.name?.endsWith(".kdbx", ignoreCase = true) == true }
+                .mapNotNull { it.name }
+                .toSet()
+            
+            if (originalName !in existingNames) return originalName
+            
+            // 生成重命名方案：name(1).kdbx, name(2).kdbx
+            val baseName = originalName.removeSuffix(".kdbx")
+            var counter = 1
+            while (counter <= 100) {
+                val newName = "${baseName}($counter).kdbx"
+                if (newName !in existingNames) return newName
+                counter++
+            }
+            return originalName
+        } catch (e: Exception) {
+            Log.e("MimaDB", "getAvailableFileName failed", e)
+            return originalName
+        }
+    }
+
+    /**
+     * 将当前选中的文件迁移到新文件夹
+     * @param newFolderUri 新文件夹 URI
+     * @return Triple<Boolean, String, String> (是否成功, 新文件名, 错误信息)
+     */
+    fun migrateCurrentFileToFolder(newFolderUri: Uri): Triple<Boolean, String, String> {
+        return try {
+            // 检查数据库是否已加载
+            if (!isUnlocked || database == null) {
+                val msg = "数据库未解锁，请先打开密码本后再尝试迁移"
+                Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
+                return Triple(false, "", msg)
+            }
+            
+            // 获取原文件名（从外部 URI 或本地文件）
+            val sourceUri = dbExternalUri
+            val originalName = when {
+                sourceUri != null -> {
+                    val sourceDoc = DocumentFile.fromSingleUri(context, sourceUri)
+                    sourceDoc?.name ?: sourceUri.lastPathSegment ?: "password_book.kdbx"
+                }
+                currentKdbxFile != null -> {
+                    currentKdbxFile?.name ?: "password_book.kdbx"
+                }
+                else -> "password_book.kdbx"
+            }
+            Log.d("MimaDB", "migrateCurrentFileToFolder: source=$sourceUri, name=$originalName")
+            
+            // 清理旧路径（保留外部 URI 以便迁移后更新）
+            clearOldPaths(keepExternalUri = true)
+            
+            // 获取可用的新文件名（处理同名冲突）
+            val newName = getAvailableFileName(newFolderUri, originalName)
+            Log.d("MimaDB", "migrateCurrentFileToFolder: original=$originalName, available=$newName")
+            
+            // 在新文件夹创建文件
+            val parentDir = DocumentFile.fromTreeUri(context, newFolderUri)
+                ?: run {
+                    val msg = "无法访问目标文件夹，请重新选择"
+                    Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
+                    return Triple(false, "", msg)
+                }
+            val mimeType = "application/octet-stream"
+            val newFile = try {
+                parentDir.createFile(mimeType, newName.removeSuffix(".kdbx"))
+            } catch (e: Exception) {
+                Log.e("MimaDB", "migrateCurrentFileToFolder: createFile failed", e)
+                null
+            }
+            if (newFile == null) {
+                val msg = "无法在目标文件夹中创建文件，请检查文件夹权限"
+                Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
+                return Triple(false, "", msg)
+            }
+            
+            // 将数据库写入新文件
+            val db = database!!
+            val outputStream = context.contentResolver.openOutputStream(newFile.uri)
+                ?: run {
+                    val msg = "无法打开目标文件进行写入"
+                    Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
+                    return Triple(false, "", msg)
+                }
+            outputStream.use { out ->
+                val output = DatabaseOutputKDBX(db)
+                output.writeDatabase(out) { }
+            }
+            Log.d("MimaDB", "migrateCurrentFileToFolder: wrote database to ${newFile.uri}")
+            
+            // 更新路径配置：设置新文件夹为保存位置，新文件为当前选中文件
+            val displayPath = computeDisplayPath(newFolderUri)
+            prefs(context).edit()
+                .putString(KEY_DB_URI, newFolderUri.toString())
+                .putString(KEY_DB_EXTERNAL_URI, newFile.uri.toString())
+                .putString(KEY_DB_DISPLAY_PATH, displayPath)
+                .putString(KEY_CURRENT_DB_FILE, newFile.uri.path ?: newFile.uri.toString())
+                .apply()
+            
+            updateDisplayPath()
+            setHasDatabase(true)
+            
+            // 申请持久化权限
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    newFolderUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                context.contentResolver.takePersistableUriPermission(
+                    newFile.uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                Log.w("MimaDB", "migrateCurrentFileToFolder: takePersistableUriPermission failed", e)
+            }
+            
+            Log.d("MimaDB", "migrateCurrentFileToFolder: success, newName=$newName")
+            Triple(true, newName, "")
+        } catch (e: Exception) {
+            Log.e("MimaDB", "migrateCurrentFileToFolder failed", e)
+            Triple(false, "", "迁移失败：${e.message}")
+        }
+    }
+
+    /**
+     * 在指定文件夹创建新的空密码本
+     * @param folderUri 文件夹 URI
+     * @param fileName 文件名（不含扩展名）
+     * @param password 密码（可为空表示无加密）
+     * @return Triple<Boolean, Uri?, String> (是否成功, 新文件 URI, 错误信息)
+     */
+    fun createNewKdbxInFolder(folderUri: Uri, fileName: String = "password_book", password: String = ""): Triple<Boolean, Uri?, String> {
+        return try {
+            // 清理旧路径
+            clearOldPaths(keepExternalUri = false)
+            
+            // 在指定文件夹创建文件
+            val parentDir = DocumentFile.fromTreeUri(context, folderUri)
+                ?: run {
+                    val msg = "无法访问目标文件夹，请重新选择"
+                    Log.e("MimaDB", "createNewKdbxInFolder: $msg")
+                    return Triple(false, null, msg)
+                }
+            
+            // 处理文件名冲突
+            val fullFileName = if (fileName.endsWith(".kdbx")) fileName else "$fileName.kdbx"
+            val availableName = getAvailableFileName(folderUri, fullFileName)
+            val baseName = availableName.removeSuffix(".kdbx")
+            
+            val mimeType = "application/octet-stream"
+            val newFile = try {
+                parentDir.createFile(mimeType, baseName)
+            } catch (e: Exception) {
+                Log.e("MimaDB", "createNewKdbxInFolder: createFile failed", e)
+                null
+            }
+            if (newFile == null) {
+                val msg = "无法在目标文件夹中创建文件，请检查文件夹权限"
+                Log.e("MimaDB", "createNewKdbxInFolder: $msg")
+                return Triple(false, null, msg)
+            }
+            
+            // 创建新数据库
+            val db = DatabaseKDBX("密码本", "根目录")
+            db.kdbxVersion = UnsignedInt(0x40) // KDBX 4.0
+            db.kdfEngine = KdfFactory.argon2idKdf
+            db.randomizeKdfParameters()
+            
+            if (password.isNotEmpty()) {
+                val mc = MasterCredential(password.toCharArray())
+                db.deriveMasterKey(mc, HardwareKeyNoOp)
+                setHasPassword(true)
+            } else {
+                setHasPassword(false)
+            }
+            
+            ensureHistoryGroupExists(db)
+            
+            // 先设置为当前数据库
+            database = db
+            isUnlocked = true
+            savedMasterPassword = if (password.isNotEmpty()) password else null
+            
+            // 直接写入到目标位置
+            val outputStream = context.contentResolver.openOutputStream(newFile.uri)
+                ?: run {
+                    val msg = "无法打开目标文件进行写入"
+                    Log.e("MimaDB", "createNewKdbxInFolder: $msg")
+                    newFile.delete()
+                    database = null
+                    isUnlocked = false
+                    return Triple(false, null, msg)
+                }
+            outputStream.use { out ->
+                val output = DatabaseOutputKDBX(db)
+                output.writeDatabase(out) { }
+            }
+            Log.d("MimaDB", "createNewKdbxInFolder: created ${newFile.uri}")
+            
+            // 更新路径配置
+            val displayPath = computeDisplayPath(folderUri)
+            prefs(context).edit()
+                .putString(KEY_DB_URI, folderUri.toString())
+                .putString(KEY_DB_EXTERNAL_URI, newFile.uri.toString())
+                .putString(KEY_DB_DISPLAY_PATH, displayPath)
+                .putString(KEY_CURRENT_DB_FILE, newFile.uri.path ?: newFile.uri.toString())
+                .apply()
+            
+            if (!password.isNotEmpty()) {
+                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
+            } else {
+                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
+            }
+            
+            updateDisplayPath()
+            setHasDatabase(true)
+            
+            // 申请持久化权限
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    folderUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                context.contentResolver.takePersistableUriPermission(
+                    newFile.uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                Log.w("MimaDB", "createNewKdbxInFolder: takePersistableUriPermission failed", e)
+            }
+            
+            Log.d("MimaDB", "createNewKdbxInFolder: success")
+            Triple(true, newFile.uri, "")
+        } catch (e: Exception) {
+            Log.e("MimaDB", "createNewKdbxInFolder failed", e)
+            Triple(false, null, "创建失败：${e.message}")
+        }
+    }
+
+    /** 用文件夹 URI 迁移数据库（保留向后兼容） */
     fun moveDatabaseByUri(folderUri: Uri): Boolean {
         return try {
             // 先保存当前数据库
@@ -455,7 +832,7 @@ class DatabaseManager(private val context: Context) {
             val parentDir = DocumentFile.fromTreeUri(context, folderUri)
                 ?: throw IOException("无法访问目标文件夹")
             val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension("kdbx") ?: "application/octet-stream"
-            val newFile = parentDir.createFile(mimeType, "password_book.kdbx")
+            val newFile = parentDir.createFile(mimeType, "password_book")
                 ?: throw IOException("无法在目标文件夹中创建文件")
             // 把当前数据库数据写入新文件
             if (database != null) {
@@ -553,9 +930,9 @@ class DatabaseManager(private val context: Context) {
             isUnlocked = true
             savedMasterPassword = if (!password.isNullOrBlank()) password else null
             setHasPassword(!password.isNullOrBlank())
-            // 持久化：同时更新 dbUri 和 currentDbFile
+            // 持久化：只更新 externalUri（文件）和 currentDbFile
+            // KEY_DB_URI 应该保持为文件夹 URI，不应该被文件 URI 覆盖
             prefs(context).edit()
-                .putString(KEY_DB_URI, uri.toString())
                 .putString(KEY_DB_EXTERNAL_URI, uri.toString())
                 .putString(KEY_DB_DISPLAY_PATH, computeDisplayPath(uri))
                 .putString(KEY_CURRENT_DB_FILE, uri.path ?: uri.toString())

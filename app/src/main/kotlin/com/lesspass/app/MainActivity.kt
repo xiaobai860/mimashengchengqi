@@ -61,7 +61,12 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val context = LocalContext.current
-                    val dbManager = remember { DatabaseManager(context) }
+                    val dbManager = remember { 
+                        DatabaseManager(context).apply {
+                            // 修复可能存在的错误 URI 存储（历史遗留问题）
+                            fixInvalidDbUriIfNeeded()
+                        }
+                    }
                     // 无密码密码本自动解锁
                     val autoUnlock = remember { dbManager.autoUnlock }
                     var isUnlocked by remember(autoUnlock) { mutableStateOf(dbManager.unlocked || autoUnlock) }
@@ -491,27 +496,77 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     var kdbxFileList by remember { mutableStateOf<List<KdbxFileInfo>>(emptyList()) }
     var showKdbxFilePasswordDialog by remember { mutableStateOf<KdbxFileInfo?>(null) }
 
+    // 迁移相关状态
+    var pendingFolderUri by remember { mutableStateOf<Uri?>(null) }
+    var showMigrateConfirmDialog by remember { mutableStateOf(false) }
+    var showCreateNewDialog by remember { mutableStateOf(false) }
+    var migrationResultMessage by remember { mutableStateOf<String?>(null) }
+    var showMigrationResultDialog by remember { mutableStateOf(false) }
+
     fun refreshFileList() {
         kdbxFileList = dbManager.listKdbxFiles()
     }
     LaunchedEffect(dbManager.unlocked) { refreshFileList() }
+
+    // 处理修改保存位置的核心逻辑
+    fun handleFolderSelected(uri: Uri) {
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        // 保存待处理的文件夹 URI，弹出确认对话框
+        pendingFolderUri = uri
+        showMigrateConfirmDialog = true
+    }
+
+    // 处理迁移操作
+    fun performMigration() {
+        val uri = pendingFolderUri ?: return
+        val result = dbManager.migrateCurrentFileToFolder(uri)
+        val success = result.first
+        val newName = result.second
+        val errorMsg = result.third
+        if (success) {
+            if (newName.contains("(")) {
+                migrationResultMessage = "检测到新目录中已存在同名文件，已自动将迁移的密码本重命名为 $newName"
+            } else {
+                migrationResultMessage = "密码本已成功迁移到新位置"
+            }
+            showMigrationResultDialog = true
+            Toast.makeText(context, migrationResultMessage, Toast.LENGTH_LONG).show()
+            refreshFileList()
+        } else {
+            moveError = errorMsg.ifBlank { "迁移失败，请重试" }
+        }
+        showMigrateConfirmDialog = false
+        pendingFolderUri = null
+    }
+
+    // 处理不迁移操作 - 创建新密码本
+    fun performCreateNew(fileName: String, password: String) {
+        val uri = pendingFolderUri ?: return
+        val result = dbManager.createNewKdbxInFolder(uri, fileName, password)
+        val success = result.first
+        val errorMsg = result.third
+        if (success) {
+            migrationResultMessage = "新密码本已创建成功"
+            showMigrationResultDialog = true
+            Toast.makeText(context, "新密码本创建成功", Toast.LENGTH_SHORT).show()
+            refreshFileList()
+        } else {
+            moveError = errorMsg.ifBlank { "创建失败，请重试" }
+        }
+        showCreateNewDialog = false
+        pendingFolderUri = null
+    }
 
     // 选择目标文件夹（使用系统文件夹选择器 OpenDocumentTree）
     val pickMoveFolderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri == null) { moveError = null; return@rememberLauncherForActivityResult }
-        context.contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-        if (dbManager.moveDatabaseByUri(uri)) {
-            Toast.makeText(context, "文件位置已修改", Toast.LENGTH_SHORT).show()
-            moveError = null
-            refreshFileList()
-        } else {
-            moveError = "修改失败"
-        }
+        moveError = null
+        handleFolderSelected(uri)
     }
 
     Column(
@@ -683,6 +738,157 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             onDismiss = { showChangePasswordDialog = false }
         )
     }
+
+    // 迁移确认对话框
+    if (showMigrateConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showMigrateConfirmDialog = false
+                pendingFolderUri = null
+            },
+            title = { Text("修改保存位置") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("您已选择了新的保存位置。")
+                    Text("请选择如何处理当前的密码本：")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "• 迁移当前密码本到新位置",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "• 在新位置创建一个新的空密码本",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        // 检查是否有当前选中的文件
+                        if (dbManager.currentKdbxUri != null || dbManager.currentKdbxFile != null) {
+                            performMigration()
+                        } else {
+                            // 没有当前文件，直接迁移数据库
+                            performMigration()
+                        }
+                    }
+                ) { Text("迁移") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showMigrateConfirmDialog = false
+                        showCreateNewDialog = true
+                    }
+                ) { Text("创建新密码本") }
+            }
+        )
+    }
+
+    // 创建新密码本对话框
+    if (showCreateNewDialog) {
+        CreateNewDatabaseDialog(
+            onDismiss = {
+                showCreateNewDialog = false
+                pendingFolderUri = null
+            },
+            onConfirm = { fileName, password ->
+                performCreateNew(fileName, password)
+            }
+        )
+    }
+
+    // 迁移结果对话框
+    if (showMigrationResultDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showMigrationResultDialog = false
+                migrationResultMessage = null
+            },
+            title = { Text("操作完成") },
+            text = {
+                Text(migrationResultMessage ?: "操作已完成")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMigrationResultDialog = false
+                        migrationResultMessage = null
+                        refreshFileList()
+                    }
+                ) { Text("确定") }
+            }
+        )
+    }
+}
+
+/** 创建新密码本对话框 */
+@Composable
+private fun CreateNewDatabaseDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (fileName: String, password: String) -> Unit
+) {
+    var fileName by remember { mutableStateOf("password_book") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("创建新密码本") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("将在新位置创建一个空的密码本", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = fileName,
+                    onValueChange = { fileName = it },
+                    label = { Text("文件名（不含扩展名）") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("密码（可留空，表示无加密）") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = { Text("确认密码") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                errorMessage?.let { 
+                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) 
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (fileName.isBlank()) {
+                        errorMessage = "文件名不能为空"
+                        return@TextButton
+                    }
+                    if (password != confirmPassword) {
+                        errorMessage = "两次输入的密码不一致"
+                        return@TextButton
+                    }
+                    onConfirm(fileName, password)
+                }
+            ) { Text("创建") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }
 
 /** 外部 KDBX 文件密码输入对话框 */
