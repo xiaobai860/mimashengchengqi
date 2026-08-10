@@ -9,6 +9,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -484,20 +487,21 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     var exportError by remember { mutableStateOf<String?>(null) }
     var moveError by remember { mutableStateOf<String?>(null) }
 
-    // 密码本文件列表
+    // 密码本文件列表（与状态面板数据同步）
     var kdbxFileList by remember { mutableStateOf<List<KdbxFileInfo>>(emptyList()) }
     var showKdbxFilePasswordDialog by remember { mutableStateOf<KdbxFileInfo?>(null) }
-    LaunchedEffect(Unit) {
+
+    fun refreshFileList() {
         val folder = dbManager.currentKdbxFile?.parentFile ?: context.filesDir
         kdbxFileList = dbManager.listKdbxFiles(folder)
     }
+    LaunchedEffect(dbManager.unlocked) { refreshFileList() }
 
     // 选择目标文件夹（使用系统文件夹选择器 OpenDocumentTree）
     val pickMoveFolderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri == null) { moveError = null; return@rememberLauncherForActivityResult }
-        // 确保有持久化读写权限
         context.contentResolver.takePersistableUriPermission(
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -505,6 +509,7 @@ fun SettingsScreen(dbManager: DatabaseManager) {
         if (dbManager.moveDatabaseByUri(uri)) {
             Toast.makeText(context, "文件位置已修改", Toast.LENGTH_SHORT).show()
             moveError = null
+            refreshFileList()
         } else {
             moveError = "修改失败"
         }
@@ -519,17 +524,72 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     ) {
         Text("设置", style = MaterialTheme.typography.titleLarge)
 
-        // 密码状态
+        // ==================== 密码本状态（整合文件列表） ====================
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(8.dp),
             tonalElevation = 1.dp
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("密码本状态", style = MaterialTheme.typography.titleMedium)
+                // 标题行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("密码本状态", style = MaterialTheme.typography.titleMedium)
+                    TextButton(
+                        onClick = { refreshFileList() },
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "刷新", modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text("刷新", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
+
+                // 状态信息
                 Text("文件路径: ${dbManager.filePath}", style = MaterialTheme.typography.bodySmall)
                 Text("已加密: ${if (dbManager.hasPassword) "是" else "否"}", style = MaterialTheme.typography.bodySmall)
+                Text("文件数量: ${kdbxFileList.size} 个", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(10.dp))
+
+                // 文件列表
+                if (kdbxFileList.isEmpty()) {
+                    Text("暂无密码本文件", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        kdbxFileList.forEach { fileInfo ->
+                            KdbxFileEntry(
+                                fileInfo = fileInfo,
+                                isCurrent = fileInfo.path == dbManager.currentKdbxFile?.absolutePath,
+                                onSelect = { showKdbxFilePasswordDialog = fileInfo },
+                                onDelete = {
+                                    val f = File(fileInfo.path)
+                                    dbManager.deleteKdbxFile(f)
+                                    refreshFileList()
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                // 清除所有数据
+                OutlinedButton(
+                    onClick = { showClearDataDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                ) {
+                    Icon(Icons.Filled.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("清除所有数据")
+                }
             }
         }
 
@@ -558,19 +618,16 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
 
-        // 导出 KDBX 文件（直接分享，无需先选保存位置）
+        // 导出 KDBX 文件
         OutlinedButton(
             onClick = {
                 try {
                     val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
-                    // 在内存中生成 KDBX 字节数组
                     val baos = java.io.ByteArrayOutputStream()
                     dbManager.exportToOutputStream(baos)
                     val bytes = baos.toByteArray()
-                    // 写入临时文件供分享
                     val tempFile = File.createTempFile("kdbx_export_", ".kdbx", context.cacheDir)
                     tempFile.writeBytes(bytes)
-                    // 构建分享 Intent
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "application/octet-stream"
                         val fileUri = androidx.core.content.FileProvider.getUriForFile(
@@ -599,56 +656,6 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         }
 
-        // ==================== 密码本文件列表 ====================
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            tonalElevation = 1.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("密码本文件列表", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(4.dp))
-                Text("保存目录: ${dbManager.filePath}", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(8.dp))
-
-                if (kdbxFileList.isEmpty()) {
-                    Text("暂无密码本文件", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        kdbxFileList.forEach { fileInfo ->
-                            KdbxFileEntry(
-                                fileInfo = fileInfo,
-                                isCurrent = fileInfo.path == dbManager.currentKdbxFile?.absolutePath,
-                                onSelect = { showKdbxFilePasswordDialog = fileInfo },
-                                onDelete = {
-                                    val f = File(fileInfo.path)
-                                    dbManager.deleteKdbxFile(f)
-                                    val folder = dbManager.currentKdbxFile?.parentFile ?: context.filesDir
-                                    kdbxFileList = dbManager.listKdbxFiles(folder)
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-                // 清除所有数据（保留密码本）
-                OutlinedButton(
-                    onClick = { showClearDataDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
-                    shape = RoundedCornerShape(4.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                ) {
-                    Icon(Icons.Filled.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("清除所有数据")
-                }
-            }
-        }
-
         // 密码本文件密码输入对话框
         KdbxFilePasswordDialogWrapper(
             selectedFile = showKdbxFilePasswordDialog,
@@ -657,8 +664,7 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             onDismiss = { showKdbxFilePasswordDialog = null },
             onSuccess = {
                 showKdbxFilePasswordDialog = null
-                val folder = dbManager.currentKdbxFile?.parentFile ?: context.filesDir
-                kdbxFileList = dbManager.listKdbxFiles(folder)
+                refreshFileList()
                 Toast.makeText(context, "已切换", Toast.LENGTH_SHORT).show()
             }
         )
@@ -716,6 +722,17 @@ private fun ExternalKdbxPasswordDialog(
     )
 }
 
+/** 格式化文件大小 */
+private fun formatFileSize(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
+    else -> String.format("%.2f MB", bytes / (1024.0 * 1024.0))
+}
+
+/** 格式化修改时间 */
+private fun formatDate(ms: Long): String =
+    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
+
 /** 密码本文件列表行 */
 @Composable
 private fun KdbxFileEntry(
@@ -724,33 +741,49 @@ private fun KdbxFileEntry(
     onSelect: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 文件名（当前选中加粗）
-        Text(
-            text = fileInfo.name,
-            style = if (isCurrent) MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                    else MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f)
-        )
-        if (isCurrent) {
-            Text("（当前）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(8.dp))
-        } else {
-            // 选择按钮
-            TextButton(onClick = onSelect, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
-                Text("选择", style = MaterialTheme.typography.labelSmall)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 文件名 + 属性信息
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = fileInfo.name,
+                    style = if (isCurrent) MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                            else MaterialTheme.typography.bodyMedium,
+                )
+                // 文件大小与修改时间
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Text(
+                        text = formatFileSize(fileInfo.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = formatDate(fileInfo.modifiedAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            Spacer(Modifier.width(4.dp))
-            // 删除按钮
-            TextButton(onClick = onDelete, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
-                Text("删除", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            if (isCurrent) {
+                Text("（当前）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            } else {
+                TextButton(onClick = onSelect, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
+                    Text("选择", style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(Modifier.width(4.dp))
+                TextButton(onClick = onDelete, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
+                    Text("删除", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
+        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
     }
 }
 

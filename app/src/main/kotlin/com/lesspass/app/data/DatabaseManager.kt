@@ -603,7 +603,9 @@ class DatabaseManager(private val context: Context) {
                         name = file.name,
                         path = file.absolutePath,
                         uri = uri,
-                        hasPassword = false // 需要实际打开才能判断，默认 false
+                        hasPassword = false,
+                        size = file.length(),
+                        modifiedAt = file.lastModified(),
                     )
                 } catch (e: Exception) {
                     Log.e("MimaDB", "listKdbxFiles error for ${file.name}", e)
