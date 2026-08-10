@@ -655,6 +655,7 @@ class DatabaseManager(private val context: Context) {
      */
     fun listKdbxFiles(): List<KdbxFileInfo> {
         val folderUri = dbUri
+        Log.d("MimaDB", "listKdbxFiles: dbUri=$folderUri")
         if (folderUri != null) {
             return listKdbxFilesByUri(folderUri)
         }
@@ -718,6 +719,7 @@ class DatabaseManager(private val context: Context) {
                             hasPassword = false,
                             size = size,
                             modifiedAt = docFile.lastModified(),
+                            isFromSaf = true,
                         )
                     } catch (e: Exception) {
                         Log.e("MimaDB", "listKdbxFilesByUri error for ${docFile.name}", e)
