@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "com.lesspass.app"
     compileSdk = 35
-    buildToolsVersion = "35.0.2"
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "com.lesspass.app"
