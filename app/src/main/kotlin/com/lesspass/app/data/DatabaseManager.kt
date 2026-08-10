@@ -593,11 +593,21 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
-     * 通过 ContentResolver 删除 SAF URI 指向的文件。
+     * 通过 SAF URI 删除文件。
+     * 使用 DocumentFile.fromSingleUri 获取可删的 DocumentFile 对象，
+     * 通过 UriMatcher 识别 DocumentProvider URI 并交由其 delete 处理。
      */
     fun deleteKdbxFileByUri(uri: Uri): Boolean {
         return try {
-            context.contentResolver.delete(uri, null, null) ?: 0 > 0
+            // 先尝试用 DocumentFile 删除（对 DocumentProvider URI 有效）
+            val docFile = DocumentFile.fromSingleUri(context, uri)
+            if (docFile?.isFile == true) {
+                return docFile.delete()
+            }
+            // 回退：尝试从文件夹 URI 找到并删除
+            val parentDoc = DocumentFile.fromTreeUri(context, uri)
+            parentDoc?.listFiles()?.firstOrNull { it.uri == uri && it.isFile }
+                ?.delete() == true
         } catch (e: Exception) {
             Log.e("MimaDB", "deleteKdbxFileByUri failed for $uri", e)
             false
