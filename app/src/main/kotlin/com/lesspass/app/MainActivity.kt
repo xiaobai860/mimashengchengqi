@@ -461,7 +461,6 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                         login = login,
                         password = pwd,
                         masterPassword = masterPassword,
-                        length = length,
                     )
                     dbManager.saveDatabase()
                 }
@@ -506,7 +505,8 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                             username = login,
                             password = password!!,
                             url = site,
-                            notes = "count=$counter, length=$length, exclude=$excludeAmbiguous\n主密码: ${masterPassword}"
+                            notes = "count=$counter, length=$length, exclude=$excludeAmbiguous",
+                            masterPassword = masterPassword
                         )
                         dbManager.saveDatabase()
                         Toast.makeText(context, "已保存到密码本", Toast.LENGTH_SHORT).show()

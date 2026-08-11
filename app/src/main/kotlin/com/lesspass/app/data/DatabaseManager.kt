@@ -10,10 +10,12 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.documentfile.provider.DocumentFile
 import com.kunzisoft.keepass.database.crypto.kdf.KdfFactory
+import com.kunzisoft.keepass.database.element.Field
 import com.kunzisoft.keepass.database.element.MasterCredential
 import com.kunzisoft.keepass.database.element.database.DatabaseKDBX
 import com.kunzisoft.keepass.database.element.entry.EntryKDBX
 import com.kunzisoft.keepass.database.element.group.GroupKDBX
+import com.kunzisoft.keepass.database.element.security.ProtectedString
 import com.kunzisoft.keepass.database.file.input.DatabaseInputKDBX
 import com.kunzisoft.keepass.database.file.output.DatabaseOutputKDBX
 import com.kunzisoft.keepass.utils.UnsignedInt
@@ -87,6 +89,9 @@ class DatabaseManager(private val context: Context) {
     private var database: DatabaseKDBX? = null
     private var isUnlocked = false
     private var savedMasterPassword: String? = null
+
+    /** 主密码在 kdbx 条目中存储的自定义字段名（第二个"密码"字段，受保护存储） */
+    private val MASTER_PASSWORD_FIELD = "主密码"
 
     val unlocked: Boolean get() = isUnlocked
     val autoUnlock: Boolean get() = prefs(context).getBoolean(KEY_AUTO_UNLOCK, false)
@@ -689,9 +694,9 @@ class DatabaseManager(private val context: Context) {
                     sourceDoc?.name ?: sourceUri.lastPathSegment ?: "$defaultKdbxBaseName.kdbx"
                 }
                 currentKdbxFile != null -> {
-                    currentKdbxFile?.name ?: "password_book.kdbx"
+                    currentKdbxFile?.name ?: "$defaultKdbxBaseName.kdbx"
                 }
-                else -> "password_book.kdbx"
+                else -> "$defaultKdbxBaseName.kdbx"
             }
             Log.d("MimaDB", "migrateCurrentFileToFolder: source=$sourceUri, name=$originalName")
             
@@ -1289,7 +1294,7 @@ class DatabaseManager(private val context: Context) {
         return entries
     }
 
-    fun addPasswordBookEntry(title: String, username: String, password: String, url: String = "", notes: String = ""): EntryKDBX? {
+    fun addPasswordBookEntry(title: String, username: String, password: String, url: String = "", notes: String = "", masterPassword: String = ""): EntryKDBX? {
         val db = database ?: return null
         val entry = db.createEntry()
         entry.title = title
@@ -1297,22 +1302,23 @@ class DatabaseManager(private val context: Context) {
         entry.password = password.toCharArray()
         entry.url = url
         entry.notes = notes
+        if (masterPassword.isNotEmpty()) {
+            // 主密码存入第二个"密码"字段（受保护），不写入 notes 明文
+            entry.putField(Field(MASTER_PASSWORD_FIELD, ProtectedString(true, masterPassword)))
+        }
         db.rootGroup?.addChildEntry(entry)
         return entry
     }
 
     // ==================== 历史记录操作 ====================
 
-    fun addHistoryEntry(site: String, login: String, password: String, masterPassword: String = "", length: Int = 16): Boolean {
+    fun addHistoryEntry(site: String, login: String, password: String, masterPassword: String = ""): Boolean {
         val db = database ?: return false
         val historyGroup = getHistoryGroup(db) ?: return false
 
-        val notes = buildHistoryNotes(masterPassword, length)
-
         val existingEntries = historyGroup.getChildEntries() as? List<EntryKDBX> ?: emptyList()
         val duplicates = existingEntries.filter { e ->
-            e.url == site && e.username == login &&
-                String(e.password) == password && e.notes == notes
+            e.url == site && e.username == login && String(e.password) == password
         }
         for (dup in duplicates) {
             historyGroup.removeChildEntry(dup)
@@ -1322,7 +1328,10 @@ class DatabaseManager(private val context: Context) {
         entry.url = site
         entry.username = login
         entry.password = password.toCharArray()
-        entry.notes = notes
+        if (masterPassword.isNotEmpty()) {
+            // 主密码存入第二个"密码"字段（受保护存储）
+            entry.putField(Field(MASTER_PASSWORD_FIELD, ProtectedString(true, masterPassword)))
+        }
         historyGroup.addChildEntry(entry)
 
         while (historyGroup.getChildEntries().size > MAX_HISTORY) {
@@ -1333,6 +1342,13 @@ class DatabaseManager(private val context: Context) {
         }
 
         return true
+    }
+
+    /**
+     * 从条目读取主密码：读取第二个"密码"自定义字段（受保护存储）。
+     */
+    fun getMasterPasswordFromEntry(entry: EntryKDBX): String {
+        return entry.getFieldValue(MASTER_PASSWORD_FIELD)?.toString() ?: ""
     }
 
     fun getHistoryEntries(): List<EntryKDBX> {
@@ -1396,15 +1412,6 @@ class DatabaseManager(private val context: Context) {
         if (parent == null) return null
         val groups = parent.getChildGroups() as? List<GroupKDBX> ?: return null
         return groups.firstOrNull { it.title == title }
-    }
-
-    private fun buildHistoryNotes(masterPassword: String, length: Int): String {
-        val sb = StringBuilder()
-        if (masterPassword.isNotEmpty()) {
-            sb.append("主密码: ").append(masterPassword)
-        }
-        sb.append("\n长度: ").append(length)
-        return sb.toString()
     }
 
     private fun collectEntries(group: GroupKDBX?, result: MutableList<EntryKDBX>) {

@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,15 +24,6 @@ import androidx.compose.ui.unit.dp
 import com.kunzisoft.keepass.database.element.entry.EntryKDBX
 import com.lesspass.app.data.DatabaseManager
 import com.lesspass.app.data.PasswordEntry
-
-/**
- * 从 notes 中解析主密码。格式: "主密码: xxx"
- */
-private fun extractMasterPasswordFromNotes(notes: String): String? {
-    return notes.lines().firstOrNull { it.startsWith("主密码:") }
-        ?.removePrefix("主密码:")?.trim()
-        ?.takeIf { it.isNotEmpty() }
-}
 
 @Composable
 fun PasswordBookScreen(
@@ -46,7 +39,7 @@ fun PasswordBookScreen(
                 title = entry.title,
                 username = entry.username,
                 password = String(entry.password),
-                masterPassword = extractMasterPasswordFromNotes(entry.notes) ?: "",
+                masterPassword = dbManager.getMasterPasswordFromEntry(entry),
                 url = entry.url,
                 notes = entry.notes,
             )
@@ -96,6 +89,7 @@ fun PasswordBookScreen(
                                     title = e.title,
                                     username = e.username,
                                     password = String(e.password),
+                                    masterPassword = dbManager.getMasterPasswordFromEntry(e),
                                     url = e.url,
                                     notes = e.notes,
                                 )
@@ -124,6 +118,7 @@ fun PasswordBookScreen(
                         title = e.title,
                         username = e.username,
                         password = String(e.password),
+                        masterPassword = dbManager.getMasterPasswordFromEntry(e),
                         url = e.url,
                         notes = e.notes,
                     )
@@ -162,12 +157,24 @@ private fun PasswordBookCard(
                 color = MaterialTheme.colorScheme.primary
             )
             entry.masterPassword.takeIf { it.isNotEmpty() }?.let { mp ->
-                Text(
-                    text = "主密码: ${mp}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                var showMp by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "主密码: ${if (showMp) mp else "•".repeat(mp.length.coerceAtLeast(6))}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { showMp = !showMp }) {
+                        Icon(
+                            if (showMp) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (showMp) "隐藏主密码" else "显示主密码"
+                        )
+                    }
+                }
             }
         }
     }

@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,6 +55,7 @@ fun HistoryScreen(
         items(entries, key = { e -> e.id.toString() }) { entry ->
             HistoryCard(
                 entry = entry,
+                dbManager = dbManager,
                 onCopy = { onCopy(String(entry.password)) },
                 onDelete = {
                     dbManager.deleteHistoryEntry(entry)
@@ -67,9 +70,12 @@ fun HistoryScreen(
 @Composable
 private fun HistoryCard(
     entry: EntryKDBX,
+    dbManager: DatabaseManager,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    var showMp by remember { mutableStateOf(false) }
+    val masterPassword = dbManager.getMasterPasswordFromEntry(entry)
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -99,15 +105,25 @@ private fun HistoryCard(
                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.primary
             )
-            // 从 notes 中解析主密码
-            val masterPassword = extractMasterPasswordFromNotes(entry.notes ?: "")
-            masterPassword?.takeIf { it.isNotEmpty() }?.let { mp ->
-                Text(
-                    text = "主密码: ${mp}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+            // 主密码：默认掩码，点击眼睛按钮切换明文
+            if (masterPassword.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "主密码: ${if (showMp) masterPassword else "•".repeat(masterPassword.length.coerceAtLeast(6))}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { showMp = !showMp }) {
+                        Icon(
+                            if (showMp) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (showMp) "隐藏主密码" else "显示主密码"
+                        )
+                    }
+                }
             }
             Text(
                 text = formatTime(entry.creationTime.toMilliseconds()),
@@ -116,12 +132,6 @@ private fun HistoryCard(
             )
         }
     }
-}
-
-private fun extractMasterPasswordFromNotes(notes: String): String? {
-    return notes.lines().firstOrNull { it.startsWith("主密码:") }
-        ?.removePrefix("主密码:")?.trim()
-        ?.takeIf { it.isNotEmpty() }
 }
 
 private fun formatTime(timestamp: Long): String {
