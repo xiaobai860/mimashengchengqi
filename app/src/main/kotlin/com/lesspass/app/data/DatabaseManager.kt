@@ -238,32 +238,38 @@ class DatabaseManager(private val context: Context) {
             db.kdbxVersion = UnsignedInt(0x40) // KDBX 4.0
             db.kdfEngine = KdfFactory.argon2idKdf
             db.randomizeKdfParameters()
-
-            if (password.isNotEmpty()) {
-                val mc = MasterCredential(password.toCharArray())
-                db.deriveMasterKey(mc, HardwareKeyNoOp)
-                setHasPassword(true)
-            } else {
-                setHasPassword(false)
-            }
-
             ensureHistoryGroupExists(db)
 
-            database = db
-            isUnlocked = true
-            savedMasterPassword = if (password.isNotEmpty()) password else null
-            setHasPassword(password.isNotEmpty())
-            if (!password.isNotEmpty()) {
-                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
-            } else {
-                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
+            // 先保存到临时变量，只有成功后才提交状态变更
+            val hasPw = password.isNotEmpty()
+            if (hasPw) {
+                val mc = MasterCredential(password.toCharArray())
+                db.deriveMasterKey(mc, HardwareKeyNoOp)
             }
+            database = db
             val saved = saveDatabase()
-            setHasDatabase(saved)
-            Log.d("MimaDB", "createDatabase: saved=$saved")
-            true
+            if (saved) {
+                isUnlocked = true
+                savedMasterPassword = if (hasPw) password else null
+                setHasPassword(hasPw)
+                setHasDatabase(true)
+                if (!hasPw) {
+                    prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
+                } else {
+                    prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
+                }
+                Log.d("MimaDB", "createDatabase: saved=$saved")
+            } else {
+                // 保存失败，回滚状态
+                database = null
+                isUnlocked = false
+                Log.e("MimaDB", "createDatabase: save failed, rolled back")
+            }
+            saved
         } catch (e: Exception) {
             Log.e("MimaDB", "createDatabase failed", e)
+            database = null
+            isUnlocked = false
             false
         }
     }
@@ -406,7 +412,14 @@ class DatabaseManager(private val context: Context) {
             Log.d("MimaDB", "saveDatabase: success, file size=${dbFile.length()}")
             true
         } catch (e: Exception) {
-            Log.e("MimaDB", "saveDatabase failed", e)
+            Log.e("MimaDB", "saveDatabase failed: ${e.message}", e)
+            var cause = e.cause
+            var depth = 0
+            while (cause != null && depth < 5) {
+                Log.e("MimaDB", "  cause[$depth]: ${cause::class.simpleName}: ${cause.message}", cause)
+                cause = cause.cause
+                depth++
+            }
             false
         }
     }

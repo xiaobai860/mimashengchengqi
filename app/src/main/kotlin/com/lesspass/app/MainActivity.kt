@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import java.io.File
 import java.text.SimpleDateFormat
@@ -61,8 +62,9 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val context = LocalContext.current
-                    val dbManager = remember { 
+                    val dbManager = remember {
                         DatabaseManager(context).apply {
+                            Log.d("MimaDB", "onCreate: hasDatabase=${hasDatabase}, autoUnlock=$autoUnlock, unlocked=$unlocked")
                             // 修复可能存在的错误 URI 存储（历史遗留问题）
                             fixInvalidDbUriIfNeeded()
                         }
@@ -70,6 +72,7 @@ class MainActivity : ComponentActivity() {
                     // 无密码密码本自动解锁
                     val autoUnlock = remember { dbManager.autoUnlock }
                     var isUnlocked by remember(autoUnlock) { mutableStateOf(dbManager.unlocked || autoUnlock) }
+                    Log.d("MimaDB", "onCreate state: isUnlocked=$isUnlocked autoUnlock=$autoUnlock hasDatabase=${dbManager.hasDatabase}")
                     val timeoutManager = remember { TimeoutManager(dbManager, onLock = { isUnlocked = false }) }
 
                     if (!isUnlocked) {

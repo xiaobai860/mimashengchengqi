@@ -92,6 +92,8 @@ abstract class GroupVersioned
         positionIndexChildren++
         group.nodeIndexInParentForNaturalOrder = positionIndexChildren
         this.childGroups.add(group)
+        @Suppress("UNCHECKED_CAST")
+        group.parent = this as Group
     }
 
     override fun addChildEntry(entry: Entry) {
@@ -121,6 +123,7 @@ abstract class GroupVersioned
     }
 
     override fun removeChildGroup(group: Group) {
+        group.parent = null
         this.childGroups.remove(group)
     }
 

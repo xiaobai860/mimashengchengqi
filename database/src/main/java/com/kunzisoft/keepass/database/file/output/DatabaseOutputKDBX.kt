@@ -82,30 +82,39 @@ class DatabaseOutputKDBX(private val mDatabaseKDBX: DatabaseKDBX)
                                assignMasterKey: () -> Unit) {
 
         try {
+            Log.d("MimaDB", "writeDatabase: step1 - outputHeader start")
             header = outputHeader(outputStream, assignMasterKey)
+            Log.d("MimaDB", "writeDatabase: step1 - outputHeader done, version=${header!!.version}")
 
             val osPlain: OutputStream = if (header!!.version.isBefore(FILE_VERSION_40)) {
+                Log.d("MimaDB", "writeDatabase: step2 - pre-4.0 path")
                 val cos = attachStreamEncryptor(header!!, outputStream)
                 cos.write(header!!.streamStartBytes)
-
                 HashedBlockOutputStream(cos)
             } else {
+                Log.d("MimaDB", "writeDatabase: step2 - v4 path, writing hash+hmac")
                 outputStream.write(hashOfHeader!!)
                 outputStream.write(headerHmac!!)
-
+                Log.d("MimaDB", "writeDatabase: step2 - writing encryptor, finalKey=${mDatabaseKDBX.finalKey?.size}, hmacKey=${mDatabaseKDBX.hmacKey?.size}")
                 attachStreamEncryptor(header!!, HmacBlockOutputStream(outputStream, mDatabaseKDBX.hmacKey!!))
             }
+            Log.d("MimaDB", "writeDatabase: step2 - osPlain done")
 
             when(mDatabaseKDBX.compressionAlgorithm) {
                 CompressionAlgorithm.GZIP -> GZIPOutputStream(osPlain)
                 else -> osPlain
             }.use { xmlOutputStream ->
+                Log.d("MimaDB", "writeDatabase: step3 - innerHeader start")
                 if (!header!!.version.isBefore(FILE_VERSION_40)) {
                     outputInnerHeader(mDatabaseKDBX, header!!, xmlOutputStream)
+                    Log.d("MimaDB", "writeDatabase: step3 - innerHeader done")
                 }
+                Log.d("MimaDB", "writeDatabase: step4 - outputDatabase start")
                 outputDatabase(xmlOutputStream)
+                Log.d("MimaDB", "writeDatabase: step4 - outputDatabase done")
             }
         } catch (e: Exception) {
+            Log.e("MimaDB", "writeDatabase failed at: ${e.stackTrace.toList().getOrNull(0)}", e)
             throw DatabaseOutputException(e)
         }
     }
@@ -169,41 +178,45 @@ class DatabaseOutputKDBX(private val mDatabaseKDBX: DatabaseKDBX)
             val groupStack = Stack<GroupKDBX>()
             groupStack.push(root)
 
-            if (!root.doForEachChild(
-                            object : NodeHandler<EntryKDBX>() {
-                                override fun operate(node: EntryKDBX): Boolean {
-                                    try {
-                                        writeEntry(node, false)
-                                    } catch (ex: IOException) {
-                                        throw RuntimeException(ex)
-                                    }
-
-                                    return true
-                                }
-                            },
-                            object : NodeHandler<GroupKDBX>() {
-                                override fun operate(node: GroupKDBX): Boolean {
-                                    while (true) {
+            var groupsOk = false
+            try {
+                groupsOk = root.doForEachChild(
+                                object : NodeHandler<EntryKDBX>() {
+                                    override fun operate(node: EntryKDBX): Boolean {
                                         try {
-                                            if (node.parent === groupStack.peek()) {
-                                                groupStack.push(node)
-                                                startGroup(node)
-                                                break
-                                            } else {
-                                                groupStack.pop()
-                                                if (groupStack.size <= 0) return false
-                                                endGroup()
-                                            }
-                                        } catch (e: IOException) {
-                                            throw RuntimeException(e)
+                                            writeEntry(node, false)
+                                        } catch (ex: IOException) {
+                                            throw RuntimeException(ex)
                                         }
-
+                                        return true
                                     }
-                                    return true
-                                }
-                            })
-            )
+                                },
+                                object : NodeHandler<GroupKDBX>() {
+                                    override fun operate(node: GroupKDBX): Boolean {
+                                        while (true) {
+                                            try {
+                                                if (node.parent === groupStack.peek()) {
+                                                    groupStack.push(node)
+                                                    startGroup(node)
+                                                    break
+                                                } else {
+                                                    groupStack.pop()
+                                                    if (groupStack.size <= 0) return false
+                                                    endGroup()
+                                                }
+                                            } catch (e: IOException) {
+                                                throw RuntimeException(e)
+                                            }
+                                        }
+                                        return true
+                                    }
+                                })
+            } catch (ex: Exception) {
+                throw RuntimeException("Writing groups failed", ex)
+            }
+            if (!groupsOk) {
                 throw RuntimeException("Writing groups failed")
+            }
 
             while (groupStack.size > 1) {
                 xml.endTag(null, DatabaseKDBXXML.ElemGroup)

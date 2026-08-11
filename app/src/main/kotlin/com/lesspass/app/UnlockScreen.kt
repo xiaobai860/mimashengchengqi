@@ -37,7 +37,8 @@ fun UnlockScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
-    val hasDatabase by remember { mutableStateOf(dbManager.hasDatabase) }
+    val hasDatabase by remember(dbManager.hasDatabase) { derivedStateOf { dbManager.hasDatabase } }
+    android.util.Log.d("MimaDB", "UnlockScreen recompose: hasDatabase=$hasDatabase dbManager.hasDatabase=${dbManager.hasDatabase}")
 
     val executor: Executor = remember { Executors.newSingleThreadExecutor() }
 
@@ -126,7 +127,7 @@ fun UnlockScreen(
                         onUnlocked()
                     } else {
                         isLoading = false
-                        errorMessage = "创建失败，请重试"
+                        errorMessage = "创建密码本失败，请重试"
                     }
                 }
             },
