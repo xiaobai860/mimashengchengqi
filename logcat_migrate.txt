@@ -1,0 +1,305 @@
+﻿--------- beginning of main
+08-11 23:22:08.642 D/MimaDB  (22240): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:22:09.373 D/MimaDB  (22240): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:22:09.399 D/MimaDB  (22240): onCreate: hasDatabase=false, autoUnlock=false, unlocked=false
+08-11 23:22:09.399 D/MimaDB  (22240): fixInvalidDbUriIfNeeded: dbUriStr=null
+08-11 23:22:09.399 D/MimaDB  (22240): fixInvalidDbUriIfNeeded: no dbUri, skipping
+08-11 23:22:09.399 D/MimaDB  (22240): onCreate state: isUnlocked=false autoUnlock=false hasDatabase=false
+08-11 23:22:09.399 D/MimaDB  (22240): UnlockScreen recompose: hasDatabase=false dbManager.hasDatabase=false
+08-11 23:22:12.310 D/MimaDB  (22240): UnlockScreen recompose: hasDatabase=false dbManager.hasDatabase=false
+08-11 23:22:12.615 D/MimaDB  (22240): UnlockScreen recompose: hasDatabase=false dbManager.hasDatabase=false
+08-11 23:22:12.919 D/MimaDB  (22240): UnlockScreen recompose: hasDatabase=false dbManager.hasDatabase=false
+08-11 23:22:13.372 D/MimaDB  (22240): saveDatabase: start, total entries in memory=0, masterKey set=true, kdfParams set=true
+08-11 23:22:13.373 D/MimaDB  (22240): writeDatabase: step1 - outputHeader start
+08-11 23:22:13.839 D/MimaDB  (22240): writeDatabase: step1 - outputHeader done, version=262144
+08-11 23:22:13.839 D/MimaDB  (22240): writeDatabase: step2 - v4 path, writing hash+hmac
+08-11 23:22:13.839 D/MimaDB  (22240): writeDatabase: step2 - writing encryptor, finalKey=32, hmacKey=64
+08-11 23:22:13.839 D/MimaDB  (22240): writeDatabase: step2 - osPlain done
+08-11 23:22:13.840 D/MimaDB  (22240): writeDatabase: step3 - innerHeader start
+08-11 23:22:13.840 D/MimaDB  (22240): writeDatabase: step3 - innerHeader done
+08-11 23:22:13.840 D/MimaDB  (22240): writeDatabase: step4 - outputDatabase start
+08-11 23:22:13.841 D/MimaDB  (22240): writeDatabase: step4 - outputDatabase done
+08-11 23:22:13.841 D/MimaDB  (22240): saveDatabase: success, file size=1349
+08-11 23:22:13.841 D/MimaDB  (22240): createDatabase: saved=true
+08-11 23:22:13.844 D/MimaDB  (22240): onCreate state: isUnlocked=true autoUnlock=false hasDatabase=true
+08-11 23:22:14.613 D/MimaDB  (22240): SettingsScreen render: kdbxFileList.size=0, displayPath=/data/user/0/com.lesspass.app/files/password_book.kdbx
+08-11 23:22:14.673 D/MimaDB  (22240): listKdbxFiles: dbUri=null
+08-11 23:22:14.673 D/MimaDB  (22240): listKdbxFiles: result.size=1
+08-11 23:22:14.676 D/MimaDB  (22240): SettingsScreen render: kdbxFileList.size=1, displayPath=/data/user/0/com.lesspass.app/files/password_book.kdbx
+08-11 23:22:15.938 D/MimaDB  (22240): listKdbxFiles: dbUri=null
+08-11 23:22:15.939 D/MimaDB  (22240): listKdbxFiles: result.size=1
+08-11 23:22:16.221 D/MimaDB  (22240): listKdbxFiles: dbUri=null
+08-11 23:22:16.222 D/MimaDB  (22240): listKdbxFiles: result.size=1
+08-11 23:22:19.857 D/MimaDB  (22240): SettingsScreen render: kdbxFileList.size=1, displayPath=/data/user/0/com.lesspass.app/files/password_book.kdbx
+08-11 23:22:20.859 D/MimaDB  (22240): migrateCurrentFileToFolder: source=null, name=password_book.kdbx
+08-11 23:22:20.859 D/MimaDB  (22240): clearOldPaths: keepExternalUri=true
+08-11 23:22:20.893 D/MimaDB  (22240): migrateCurrentFileToFolder: original=password_book.kdbx, available=password_book(1).kdbx
+08-11 23:22:20.907 D/MimaDB  (22240): writeDatabase: step1 - outputHeader start
+08-11 23:22:21.358 D/MimaDB  (22240): writeDatabase: step1 - outputHeader done, version=262144
+08-11 23:22:21.358 D/MimaDB  (22240): writeDatabase: step2 - v4 path, writing hash+hmac
+08-11 23:22:21.358 D/MimaDB  (22240): writeDatabase: step2 - writing encryptor, finalKey=32, hmacKey=64
+08-11 23:22:21.358 D/MimaDB  (22240): writeDatabase: step2 - osPlain done
+08-11 23:22:21.359 D/MimaDB  (22240): writeDatabase: step3 - innerHeader start
+08-11 23:22:21.359 D/MimaDB  (22240): writeDatabase: step3 - innerHeader done
+08-11 23:22:21.359 D/MimaDB  (22240): writeDatabase: step4 - outputDatabase start
+08-11 23:22:21.359 D/MimaDB  (22240): writeDatabase: step4 - outputDatabase done
+08-11 23:22:21.360 D/MimaDB  (22240): migrateCurrentFileToFolder: wrote database to content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC/document/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC%2Fpassword_book(1)%20(8)
+08-11 23:22:21.361 D/MimaDB  (22240): updateDisplayPath: 内部存储/Download/密码本 -> 内部存储/Download/密码本/
+08-11 23:22:21.362 W/MimaDB  (22240): migrateCurrentFileToFolder: takePersistableUriPermission failed
+08-11 23:22:21.362 W/MimaDB  (22240): java.lang.SecurityException: No persistable permission grants found for UID 10408 and Uri content://com.android.externalstorage.documents/...
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3361)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Parcel.createException(Parcel.java:3345)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Parcel.readException(Parcel.java:3328)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Parcel.readException(Parcel.java:3270)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.app.IUriGrantsManager$Stub$Proxy.takePersistableUriPermission(IUriGrantsManager.java:277)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.content.ContentResolver.takePersistableUriPermission(ContentResolver.java:2969)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.lesspass.app.data.DatabaseManager.migrateCurrentFileToFolder(DatabaseManager.kt:718)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.lesspass.app.MainActivityKt.SettingsScreen$performMigration(MainActivity.kt:536)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.lesspass.app.MainActivityKt.access$SettingsScreen$performMigration(MainActivity.kt:1)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.lesspass.app.MainActivityKt$SettingsScreen$5.invoke$lambda$1$lambda$0(MainActivity.kt:849)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.lesspass.app.MainActivityKt$SettingsScreen$5.$r8$lambda$_7u4pqRTPHt_y3FZXZsZX9I7eBw(Unknown Source:0)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.lesspass.app.MainActivityKt$SettingsScreen$5$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.foundation.ClickableNode$clickPointerInput$3.invoke-k-4lQ0M(Clickable.kt:639)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.foundation.ClickableNode$clickPointerInput$3.invoke(Clickable.kt:633)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.foundation.gestures.TapGestureDetectorKt$detectTapAndPress$2$1.invokeSuspend(TapGestureDetector.kt:255)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at kotlinx.coroutines.DispatchedTaskKt.resume(DispatchedTask.kt:179)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at kotlinx.coroutines.DispatchedTaskKt.dispatch(DispatchedTask.kt:168)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at kotlinx.coroutines.CancellableContinuationImpl.dispatchResume(CancellableContinuationImpl.kt:474)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at kotlinx.coroutines.CancellableContinuationImpl.resumeImpl(CancellableContinuationImpl.kt:508)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at kotlinx.coroutines.CancellableContinuationImpl.resumeImpl$default(CancellableContinuationImpl.kt:497)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at kotlinx.coroutines.CancellableContinuationImpl.resumeWith(CancellableContinuationImpl.kt:368)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNodeImpl$PointerEventHandlerCoroutine.offerPointerEvent(SuspendingPointerInputFilter.kt:719)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNodeImpl.dispatchPointerEvent(SuspendingPointerInputFilter.kt:598)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNodeImpl.onPointerEvent-H0pRuoY(SuspendingPointerInputFilter.kt:620)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.foundation.AbstractClickableNode.onPointerEvent-H0pRuoY(Clickable.kt:1044)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.Node.dispatchMainEventPass(HitPathTracker.kt:387)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.Node.dispatchMainEventPass(HitPathTracker.kt:373)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.NodeParent.dispatchMainEventPass(HitPathTracker.kt:229)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.HitPathTracker.dispatchChanges(HitPathTracker.kt:144)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.input.pointer.PointerInputEventProcessor.process-BIzXfog(PointerInputEventProcessor.kt:120)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.platform.AndroidComposeView.sendMotionEvent-8iAsVTc(AndroidComposeView.android.kt:1994)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.platform.AndroidComposeView.handleMotionEvent-8iAsVTc(AndroidComposeView.android.kt:1945)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at androidx.compose.ui.platform.AndroidComposeView.dispatchTouchEvent(AndroidComposeView.android.kt:1829)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.android.internal.policy.DecorView.superDispatchTouchEvent(DecorView.java:634)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.android.internal.policy.PhoneWindow.superDispatchTouchEvent(PhoneWindow.java:2041)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.app.Dialog.dispatchTouchEvent(Dialog.java:963)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.android.internal.policy.DecorView.dispatchTouchEvent(DecorView.java:592)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.View.dispatchPointerEvent(View.java:17332)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.xiaomi.mirror.MiuiMirrorImpl.isHandled(MiuiMirrorImpl.java:150)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$ViewPostImeInputStage.processPointerEvent(ViewRootImpl.java:9965)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$ViewPostImeInputStage.onProcess(ViewRootImpl.java:9703)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:9034)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:9097)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:9063)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$AsyncInputStage.forward(ViewRootImpl.java:9235)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:9071)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$AsyncInputStage.apply(ViewRootImpl.java:9292)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:9038)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:9097)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:9063)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:9071)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:9038)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl.deliverInputEvent(ViewRootImpl.java:12515)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl.doProcessInputEvents(ViewRootImpl.java:12435)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl.enqueueInputEvent(ViewRootImpl.java:12370)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl.processRawInputEvent(ViewRootImpl.java:12949)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.ViewRootImpl$WindowInputEventReceiver.onInputEvent(ViewRootImpl.java:12688)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.view.InputEventReceiver.dispatchInputEvent(InputEventReceiver.java:342)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.MessageQueue.nativePollOnce(Native Method)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.MessageQueue.nextLegacy(MessageQueue.java:957)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.MessageQueue.next(MessageQueue.java:1099)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Looper.loopOnce(Looper.java:217)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Looper.loop(Looper.java:369)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.app.ActivityThread.main(ActivityThread.java:10085)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at java.lang.reflect.Method.invoke(Native Method)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:616)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1137)
+08-11 23:22:21.362 W/MimaDB  (22240): Caused by: android.os.RemoteException: Remote stack trace:
+08-11 23:22:21.362 W/MimaDB  (22240): 	at com.android.server.uri.UriGrantsManagerService.takePersistableUriPermission(UriGrantsManagerService.java:434)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.app.IUriGrantsManager$Stub.onTransact(IUriGrantsManager.java:149)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Binder.execTransactInternal(Binder.java:1428)
+08-11 23:22:21.362 W/MimaDB  (22240): 	at android.os.Binder.execTransact(Binder.java:1372)
+08-11 23:22:21.362 W/MimaDB  (22240): 
+08-11 23:22:21.362 D/MimaDB  (22240): migrateCurrentFileToFolder: success, newName=password_book(1).kdbx
+08-11 23:22:21.365 D/MimaDB  (22240): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:22:21.373 D/MimaDB  (22240): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:22:21.399 D/MimaDB  (22240): listKdbxFiles: result.size=1
+08-11 23:22:21.403 D/MimaDB  (22240): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:22:22.569 D/MimaDB  (22240): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:22:22.584 D/MimaDB  (22240): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:22:22.612 D/MimaDB  (22240): listKdbxFiles: result.size=1
+08-11 23:22:22.615 D/MimaDB  (22240): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:22:24.249 D/MimaDB  (22240): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:22:24.262 D/MimaDB  (22240): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:22:24.291 D/MimaDB  (22240): listKdbxFiles: result.size=1
+08-11 23:22:24.502 D/MimaDB  (22240): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:22:24.518 D/MimaDB  (22240): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:22:24.549 D/MimaDB  (22240): listKdbxFiles: result.size=1
+08-11 23:25:55.605 D/MimaDB  (25466): onCreate: hasDatabase=true, autoUnlock=false, unlocked=false
+08-11 23:25:55.605 D/MimaDB  (25466): fixInvalidDbUriIfNeeded: dbUriStr=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:25:55.605 D/MimaDB  (25466): fixInvalidDbUriIfNeeded: path=/tree/primary:Download/密码本
+08-11 23:25:55.605 D/MimaDB  (25466): onCreate state: isUnlocked=false autoUnlock=false hasDatabase=true
+08-11 23:25:55.606 D/MimaDB  (25466): UnlockScreen recompose: hasDatabase=true dbManager.hasDatabase=true
+08-11 23:25:58.330 D/MimaDB  (25466): UnlockScreen recompose: hasDatabase=true dbManager.hasDatabase=true
+08-11 23:25:58.700 D/MimaDB  (25466): UnlockScreen recompose: hasDatabase=true dbManager.hasDatabase=true
+08-11 23:25:59.025 D/MimaDB  (25466): UnlockScreen recompose: hasDatabase=true dbManager.hasDatabase=true
+08-11 23:26:00.122 D/MimaDB  (25466): openDatabase: trying external URI=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC/document/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC%2Fpassword_book(1)%20(8)
+08-11 23:26:01.055 D/MimaDB  (25466): onCreate state: isUnlocked=true autoUnlock=false hasDatabase=true
+08-11 23:26:01.745 D/MimaDB  (25466): SettingsScreen render: kdbxFileList.size=0, displayPath=内部存储/Download/密码本/
+08-11 23:26:01.841 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:01.851 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:01.864 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:01.870 D/MimaDB  (25466): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:26:02.973 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:02.984 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:02.999 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:03.199 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:03.210 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:03.225 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:03.400 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:03.413 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:03.429 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:03.618 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:03.632 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:03.650 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:03.835 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:03.846 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:03.863 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:03.998 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:04.010 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:04.025 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:04.168 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:04.180 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=13
+08-11 23:26:04.197 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:22.135 D/MimaDB  (25466): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:26:23.323 D/MimaDB  (25466): migrateCurrentFileToFolder: source=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC/document/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC%2Fpassword_book(1)%20(8), name=password_book(1) (8)
+08-11 23:26:23.323 D/MimaDB  (25466): clearOldPaths: keepExternalUri=true
+08-11 23:26:23.359 D/MimaDB  (25466): migrateCurrentFileToFolder: original=password_book(1) (8), available=password_book(1) (8)
+08-11 23:26:23.372 D/MimaDB  (25466): writeDatabase: step1 - outputHeader start
+08-11 23:26:23.842 D/MimaDB  (25466): writeDatabase: step1 - outputHeader done, version=262144
+08-11 23:26:23.842 D/MimaDB  (25466): writeDatabase: step2 - v4 path, writing hash+hmac
+08-11 23:26:23.842 D/MimaDB  (25466): writeDatabase: step2 - writing encryptor, finalKey=32, hmacKey=64
+08-11 23:26:23.842 D/MimaDB  (25466): writeDatabase: step2 - osPlain done
+08-11 23:26:23.842 D/MimaDB  (25466): writeDatabase: step3 - innerHeader start
+08-11 23:26:23.842 D/MimaDB  (25466): writeDatabase: step3 - innerHeader done
+08-11 23:26:23.842 D/MimaDB  (25466): writeDatabase: step4 - outputDatabase start
+08-11 23:26:23.844 D/MimaDB  (25466): writeDatabase: step4 - outputDatabase done
+08-11 23:26:23.845 D/MimaDB  (25466): migrateCurrentFileToFolder: wrote database to content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC/document/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC%2Fpassword_book(1)%20(8)%20(1)
+08-11 23:26:23.845 D/MimaDB  (25466): updateDisplayPath: 内部存储/Download/密码本 -> 内部存储/Download/密码本/
+08-11 23:26:23.846 W/MimaDB  (25466): migrateCurrentFileToFolder: takePersistableUriPermission failed
+08-11 23:26:23.846 W/MimaDB  (25466): java.lang.SecurityException: No persistable permission grants found for UID 10408 and Uri content://com.android.externalstorage.documents/...
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3361)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Parcel.createException(Parcel.java:3345)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Parcel.readException(Parcel.java:3328)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Parcel.readException(Parcel.java:3270)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.app.IUriGrantsManager$Stub$Proxy.takePersistableUriPermission(IUriGrantsManager.java:277)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.content.ContentResolver.takePersistableUriPermission(ContentResolver.java:2969)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.lesspass.app.data.DatabaseManager.migrateCurrentFileToFolder(DatabaseManager.kt:718)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.lesspass.app.MainActivityKt.SettingsScreen$performMigration(MainActivity.kt:536)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.lesspass.app.MainActivityKt.access$SettingsScreen$performMigration(MainActivity.kt:1)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.lesspass.app.MainActivityKt$SettingsScreen$5.invoke$lambda$1$lambda$0(MainActivity.kt:846)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.lesspass.app.MainActivityKt$SettingsScreen$5.$r8$lambda$_7u4pqRTPHt_y3FZXZsZX9I7eBw(Unknown Source:0)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.lesspass.app.MainActivityKt$SettingsScreen$5$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.foundation.ClickableNode$clickPointerInput$3.invoke-k-4lQ0M(Clickable.kt:639)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.foundation.ClickableNode$clickPointerInput$3.invoke(Clickable.kt:633)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.foundation.gestures.TapGestureDetectorKt$detectTapAndPress$2$1.invokeSuspend(TapGestureDetector.kt:255)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at kotlinx.coroutines.DispatchedTaskKt.resume(DispatchedTask.kt:179)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at kotlinx.coroutines.DispatchedTaskKt.dispatch(DispatchedTask.kt:168)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at kotlinx.coroutines.CancellableContinuationImpl.dispatchResume(CancellableContinuationImpl.kt:474)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at kotlinx.coroutines.CancellableContinuationImpl.resumeImpl(CancellableContinuationImpl.kt:508)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at kotlinx.coroutines.CancellableContinuationImpl.resumeImpl$default(CancellableContinuationImpl.kt:497)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at kotlinx.coroutines.CancellableContinuationImpl.resumeWith(CancellableContinuationImpl.kt:368)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNodeImpl$PointerEventHandlerCoroutine.offerPointerEvent(SuspendingPointerInputFilter.kt:719)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNodeImpl.dispatchPointerEvent(SuspendingPointerInputFilter.kt:598)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNodeImpl.onPointerEvent-H0pRuoY(SuspendingPointerInputFilter.kt:620)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.foundation.AbstractClickableNode.onPointerEvent-H0pRuoY(Clickable.kt:1044)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.Node.dispatchMainEventPass(HitPathTracker.kt:387)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.Node.dispatchMainEventPass(HitPathTracker.kt:373)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.NodeParent.dispatchMainEventPass(HitPathTracker.kt:229)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.HitPathTracker.dispatchChanges(HitPathTracker.kt:144)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.input.pointer.PointerInputEventProcessor.process-BIzXfog(PointerInputEventProcessor.kt:120)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.platform.AndroidComposeView.sendMotionEvent-8iAsVTc(AndroidComposeView.android.kt:1994)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.platform.AndroidComposeView.handleMotionEvent-8iAsVTc(AndroidComposeView.android.kt:1945)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at androidx.compose.ui.platform.AndroidComposeView.dispatchTouchEvent(AndroidComposeView.android.kt:1829)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3171)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2851)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.android.internal.policy.DecorView.superDispatchTouchEvent(DecorView.java:634)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.android.internal.policy.PhoneWindow.superDispatchTouchEvent(PhoneWindow.java:2041)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.app.Dialog.dispatchTouchEvent(Dialog.java:963)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.android.internal.policy.DecorView.dispatchTouchEvent(DecorView.java:592)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.View.dispatchPointerEvent(View.java:17332)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.xiaomi.mirror.MiuiMirrorImpl.isHandled(MiuiMirrorImpl.java:150)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$ViewPostImeInputStage.processPointerEvent(ViewRootImpl.java:9965)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$ViewPostImeInputStage.onProcess(ViewRootImpl.java:9703)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:9034)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:9097)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:9063)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$AsyncInputStage.forward(ViewRootImpl.java:9235)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:9071)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$AsyncInputStage.apply(ViewRootImpl.java:9292)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:9038)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:9097)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:9063)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:9071)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:9038)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl.deliverInputEvent(ViewRootImpl.java:12515)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl.doProcessInputEvents(ViewRootImpl.java:12435)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl.enqueueInputEvent(ViewRootImpl.java:12370)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl.processRawInputEvent(ViewRootImpl.java:12949)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.ViewRootImpl$WindowInputEventReceiver.onInputEvent(ViewRootImpl.java:12688)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.view.InputEventReceiver.dispatchInputEvent(InputEventReceiver.java:342)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.MessageQueue.nativePollOnce(Native Method)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.MessageQueue.nextLegacy(MessageQueue.java:957)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.MessageQueue.next(MessageQueue.java:1099)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Looper.loopOnce(Looper.java:217)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Looper.loop(Looper.java:369)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.app.ActivityThread.main(ActivityThread.java:10085)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at java.lang.reflect.Method.invoke(Native Method)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:616)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1137)
+08-11 23:26:23.846 W/MimaDB  (25466): Caused by: android.os.RemoteException: Remote stack trace:
+08-11 23:26:23.846 W/MimaDB  (25466): 	at com.android.server.uri.UriGrantsManagerService.takePersistableUriPermission(UriGrantsManagerService.java:434)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.app.IUriGrantsManager$Stub.onTransact(IUriGrantsManager.java:149)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Binder.execTransactInternal(Binder.java:1428)
+08-11 23:26:23.846 W/MimaDB  (25466): 	at android.os.Binder.execTransact(Binder.java:1372)
+08-11 23:26:23.846 W/MimaDB  (25466): 
+08-11 23:26:23.846 D/MimaDB  (25466): migrateCurrentFileToFolder: success, newName=password_book(1) (8)
+08-11 23:26:23.849 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:23.858 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=14
+08-11 23:26:23.874 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:23.878 D/MimaDB  (25466): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:26:24.712 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:24.726 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=14
+08-11 23:26:24.741 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:24.744 D/MimaDB  (25466): SettingsScreen render: kdbxFileList.size=1, displayPath=内部存储/Download/密码本/
+08-11 23:26:25.251 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:25.263 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=14
+08-11 23:26:25.277 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:25.437 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:25.455 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=14
+08-11 23:26:25.473 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:25.662 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:25.679 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=14
+08-11 23:26:25.698 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:25.871 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:25.887 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=14
+08-11 23:26:25.907 D/MimaDB  (25466): listKdbxFiles: result.size=1
+08-11 23:26:26.036 D/MimaDB  (25466): listKdbxFiles: dbUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC
+08-11 23:26:26.049 D/MimaDB  (25466): listKdbxFilesByUri: folderUri=content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E5%AF%86%E7%A0%81%E6%9C%AC totalChildren=14
+08-11 23:26:26.066 D/MimaDB  (25466): listKdbxFiles: result.size=1

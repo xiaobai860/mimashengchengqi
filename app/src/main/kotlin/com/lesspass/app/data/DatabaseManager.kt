@@ -2,6 +2,7 @@ package com.lesspass.app.data
 
 import android.content.Context
 import android.content.Intent
+import android.provider.DocumentsContract
 import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
@@ -132,6 +133,23 @@ class DatabaseManager(private val context: Context) {
     val masterPasswordValue: String? get() = savedMasterPassword
     val hasPassword: Boolean get() = prefs(context).getBoolean(KEY_HAS_PASSWORD, false)
     val hasDatabase: Boolean get() = prefs(context).getBoolean(KEY_HAS_DB, false)
+
+    /** 默认密码本文件名（本地存储场景） */
+    val defaultKdbxName: String get() = defaultDbFile.name
+
+    /**
+     * 是否已显式选中某个密码本文件（通过选择/切换操作）。
+     * 首次进入应用、未做过任何选择时可能为 false。
+     */
+    val hasExplicitKdbxSelection: Boolean
+        get() = currentKdbxUri != null || currentKdbxFile != null
+
+    /**
+     * 当前应被标识为"选中"的密码本文件（用于 UI 高亮）。
+     * 若有显式选中的文件则返回其路径，否则回退到默认密码本文件（若存在）。
+     */
+    val effectiveSelectedFile: File?
+        get() = currentKdbxFile ?: if (defaultDbFile.exists()) defaultDbFile else null
 
     private fun setHasPassword(hasPassword: Boolean) {
         prefs(context).edit().putBoolean(KEY_HAS_PASSWORD, hasPassword).apply()
@@ -654,8 +672,11 @@ class DatabaseManager(private val context: Context) {
                     return Triple(false, "", msg)
                 }
             val mimeType = "application/octet-stream"
+            // 注意：createFile 的 displayName 必须保留 .kdbx 后缀，否则在部分 ROM（如小米）
+            // 上文件会丢失扩展名，导致后续按 .kdbx 列举时无法识别。
+            val createName = if (newName.endsWith(".kdbx", ignoreCase = true)) newName else "$newName.kdbx"
             val newFile = try {
-                parentDir.createFile(mimeType, newName.removeSuffix(".kdbx"))
+                parentDir.createFile(mimeType, createName)
             } catch (e: Exception) {
                 Log.e("MimaDB", "migrateCurrentFileToFolder: createFile failed", e)
                 null
@@ -737,11 +758,12 @@ class DatabaseManager(private val context: Context) {
             // 处理文件名冲突
             val fullFileName = if (fileName.endsWith(".kdbx")) fileName else "$fileName.kdbx"
             val availableName = getAvailableFileName(folderUri, fullFileName)
-            val baseName = availableName.removeSuffix(".kdbx")
-            
+            // createFile 的 displayName 必须保留 .kdbx 后缀，否则部分 ROM 上文件会丢失扩展名。
+            val createName = availableName
+
             val mimeType = "application/octet-stream"
             val newFile = try {
-                parentDir.createFile(mimeType, baseName)
+                parentDir.createFile(mimeType, createName)
             } catch (e: Exception) {
                 Log.e("MimaDB", "createNewKdbxInFolder: createFile failed", e)
                 null
@@ -1048,11 +1070,14 @@ class DatabaseManager(private val context: Context) {
     fun listKdbxFiles(): List<KdbxFileInfo> {
         val folderUri = dbUri
         Log.d("MimaDB", "listKdbxFiles: dbUri=$folderUri")
-        if (folderUri != null) {
-            return listKdbxFilesByUri(folderUri)
+        val result = if (folderUri != null) {
+            listKdbxFilesByUri(folderUri)
+        } else {
+            val folder = currentKdbxFile?.parentFile ?: defaultDbFile.parentFile ?: context.filesDir
+            listKdbxFiles(folder)
         }
-        val folder = currentKdbxFile?.parentFile ?: defaultDbFile.parentFile ?: context.filesDir
-        return listKdbxFiles(folder)
+        Log.d("MimaDB", "listKdbxFiles: result.size=${result.size}")
+        return result
     }
 
     /**
@@ -1081,43 +1106,81 @@ class DatabaseManager(private val context: Context) {
 
     /**
      * 通过 SAF URI 列出文件夹内所有 .kdbx 文件。
-     * 使用 DocumentFile 配合 ContentResolver 获取文件元数据。
+     *
+     * 兼容说明：
+     *  - [DocumentFile.listFiles] 在小米等 ROM 上能返回子文档，但 [DocumentFile.getName]
+     *    对子文档返回 null（DISPLAY_NAME 列读取异常），导致此前按 .kdbx 过滤后只剩 1 个。
+     *  - [DocumentsContract.buildChildDocumentsUriUsingTree] 对含中文路径的 tree 在小米上
+     *    只返回目录自身（1 条），同样不可靠。
+     *
+     * 因此采用组合方案：
+     *   1) 用 [DocumentFile.fromTreeUri].listFiles() 拿到真实子文档集合（数量正确）；
+     *   2) 对每个 child 提取 documentId，构造标准 document URI（buildDocumentUriUsingTree），
+     *      再 query 取 COLUMN_DISPLAY_NAME / MIME_TYPE / SIZE / LAST_MODIFIED（标准 child-document
+     *      URI 的 DISPLAY_NAME 在 externalstorage provider 上可读）；
+     *   3) DISPLAY_NAME 仍缺失时，回退用 documentId 的末段作为文件名。
      */
     fun listKdbxFilesByUri(folderUri: Uri): List<KdbxFileInfo> {
         return try {
             val parent = DocumentFile.fromTreeUri(context, folderUri)
-                ?: return emptyList()
-            parent.listFiles()
-                .filter { it.isFile && it.name?.endsWith(".kdbx", ignoreCase = true) == true }
-                .mapNotNull { docFile ->
+                ?: return emptyList<KdbxFileInfo>().also { Log.e("MimaDB", "listKdbxFilesByUri: parent null for $folderUri") }
+            val children = parent.listFiles()
+            Log.d("MimaDB", "listKdbxFilesByUri: folderUri=$folderUri totalChildren=${children.size}")
+
+            val colName = DocumentsContract.Document.COLUMN_DISPLAY_NAME
+            val colMime = DocumentsContract.Document.COLUMN_MIME_TYPE
+            val colSize = DocumentsContract.Document.COLUMN_SIZE
+            val colLastMod = DocumentsContract.Document.COLUMN_LAST_MODIFIED
+
+            val result = mutableListOf<KdbxFileInfo>()
+            children.forEachIndexed { i, docFile ->
+                try {
+                    val docId = DocumentsContract.getDocumentId(docFile.uri)
+                    val standardUri = DocumentsContract.buildDocumentUriUsingTree(folderUri, docId)
+                    var name: String? = null
+                    var mime: String? = null
+                    var size = 0L
+                    var lastMod = 0L
                     try {
-                        val size = try {
-                            context.contentResolver.query(
-                                docFile.uri,
-                                arrayOf(
-                                    android.provider.OpenableColumns.DISPLAY_NAME,
-                                    android.provider.OpenableColumns.SIZE
-                                ),
-                                null, null, null
-                            )?.use { cursor ->
-                                if (cursor.moveToFirst()) cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.SIZE))
-                                else 0L
-                            } ?: 0L
-                        } catch (_: Exception) { 0L }
+                        context.contentResolver.query(
+                            standardUri,
+                            arrayOf(colName, colMime, colSize, colLastMod),
+                            null, null, null
+                        )?.use { c ->
+                            if (c.moveToFirst()) {
+                                name = c.getString(c.getColumnIndexOrThrow(colName))
+                                mime = c.getString(c.getColumnIndexOrThrow(colMime))
+                                size = try { c.getLong(c.getColumnIndexOrThrow(colSize)) } catch (_: Exception) { 0L }
+                                lastMod = try { c.getLong(c.getColumnIndexOrThrow(colLastMod)) } catch (_: Exception) { 0L }
+                            }
+                        }
+                    } catch (qe: Exception) {
+                        Log.w("MimaDB", "listKdbxFilesByUri: query failed for docId=$docId", qe)
+                    }
+                    if (name.isNullOrBlank()) name = docFile.name
+                    if (name.isNullOrBlank()) name = docId.substringAfterLast('/').substringAfterLast(':')
+                    Log.d("MimaDB", "child[$i] docId=$docId name=$name mime=$mime size=$size")
+                    // 仅跳过目录；部分 ROM（如小米）上 .kdbx 文件的 DISPLAY_NAME 会丢失扩展名，
+                    // 因此不再强制 .kdbx 后缀过滤，以避免合法密码本被漏列。
+                    if (name.isNullOrBlank()) return@forEachIndexed
+                    if (mime == DocumentsContract.Document.MIME_TYPE_DIR) return@forEachIndexed
+                    result.add(
                         KdbxFileInfo(
-                            name = docFile.name ?: "unknown.kdbx",
-                            path = docFile.uri.toString(),
-                            uri = docFile.uri,
+                            name = name!!,
+                            path = standardUri.toString(),
+                            uri = standardUri,
                             hasPassword = false,
                             size = size,
-                            modifiedAt = docFile.lastModified(),
+                            modifiedAt = lastMod,
                             isFromSaf = true,
                         )
-                    } catch (e: Exception) {
-                        Log.e("MimaDB", "listKdbxFilesByUri error for ${docFile.name}", e)
-                        null
-                    }
-                }?.sortedBy { it.name } ?: emptyList()
+                    )
+                } catch (e: Exception) {
+                    Log.e("MimaDB", "listKdbxFilesByUri error for child[$i]", e)
+                }
+            }
+            Log.d("MimaDB", "listKdbxFilesByUri: matched=${result.size}")
+            result.sortedBy { it.name }
         } catch (e: Exception) {
             Log.e("MimaDB", "listKdbxFilesByUri failed", e)
             emptyList()

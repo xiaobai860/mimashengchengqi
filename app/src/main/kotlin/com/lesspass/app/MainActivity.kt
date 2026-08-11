@@ -50,6 +50,7 @@ import com.lesspass.app.data.DatabaseManager
 import com.lesspass.app.data.TimeoutManager
 import com.lesspass.app.data.PasswordEntry
 import com.lesspass.app.data.DatabaseManager.KdbxFileInfo
+import com.lesspass.app.BuildConfig
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -497,6 +498,8 @@ fun SettingsScreen(dbManager: DatabaseManager) {
 
     // 密码本文件列表（与状态面板数据同步）
     var kdbxFileList by remember { mutableStateOf<List<KdbxFileInfo>>(emptyList()) }
+    // 当前保存位置的可读路径（可观察状态，确保修改保存位置后界面立即刷新）
+    var displayPath by remember { mutableStateOf(dbManager.filePath) }
     var showKdbxFilePasswordDialog by remember { mutableStateOf<KdbxFileInfo?>(null) }
 
     // 迁移相关状态
@@ -508,15 +511,21 @@ fun SettingsScreen(dbManager: DatabaseManager) {
 
     fun refreshFileList() {
         kdbxFileList = dbManager.listKdbxFiles()
+        displayPath = dbManager.filePath
     }
     LaunchedEffect(dbManager.unlocked) { refreshFileList() }
 
     // 处理修改保存位置的核心逻辑
     fun handleFolderSelected(uri: Uri) {
-        context.contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
+        // 持久化 URI 权限，确保后续（含 Activity 重建后）仍能读取/写入该目录
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        } catch (e: Exception) {
+            Log.w("MimaDB", "handleFolderSelected: takePersistableUriPermission failed", e)
+        }
         // 保存待处理的文件夹 URI，弹出确认对话框
         pendingFolderUri = uri
         showMigrateConfirmDialog = true
@@ -564,9 +573,13 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     }
 
     // 选择目标文件夹（使用系统文件夹选择器 OpenDocumentTree）
+    // 通过 StartActivityForResult 手动构造 Intent，并加上 FLAG_GRANT_PERSISTABLE_URI_PERMISSION，
+    // 否则系统不会授予持久 URI 权限，导致迁移/创建后无法读取该目录下的密码本列表。
     val pickMoveFolderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri: Uri? ->
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != android.app.Activity.RESULT_OK) { moveError = null; return@rememberLauncherForActivityResult }
+        val uri = result.data?.data
         if (uri == null) { moveError = null; return@rememberLauncherForActivityResult }
         moveError = null
         handleFolderSelected(uri)
@@ -607,21 +620,74 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                 Spacer(Modifier.height(8.dp))
 
                 // 状态信息
-                Text("文件路径: ${dbManager.filePath}", style = MaterialTheme.typography.bodySmall)
+                Text("文件路径: $displayPath", style = MaterialTheme.typography.bodySmall)
                 Text("已加密: ${if (dbManager.hasPassword) "是" else "否"}", style = MaterialTheme.typography.bodySmall)
                 Text("文件数量: ${kdbxFileList.size} 个", style = MaterialTheme.typography.bodySmall)
+                Text("当前版本: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(10.dp))
 
                 // 文件列表
+                Log.d("MimaDB", "SettingsScreen render: kdbxFileList.size=${kdbxFileList.size}, displayPath=$displayPath")
                 if (kdbxFileList.isEmpty()) {
-                    Text("暂无密码本文件", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // 列表为空时，若默认密码本在逻辑上存在（如已通过 SAF 选取但未列出），
+                    // 仍展示该默认项并标记为当前选中，避免界面显示为空白/无选中。
+                    val defaultFile = dbManager.effectiveSelectedFile
+                    if (defaultFile != null) {
+                        val defaultInfo = KdbxFileInfo(
+                            name = defaultFile.name,
+                            path = defaultFile.absolutePath,
+                            size = if (defaultFile.exists()) defaultFile.length() else 0,
+                            modifiedAt = if (defaultFile.exists()) defaultFile.lastModified() else 0,
+                            uri = dbManager.currentKdbxUri ?: android.net.Uri.fromFile(defaultFile),
+                            hasPassword = false,
+                            isFromSaf = dbManager.currentKdbxUri != null
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            KdbxFileEntry(
+                                fileInfo = defaultInfo,
+                                isCurrent = true,
+                                onSelect = { showKdbxFilePasswordDialog = defaultInfo },
+                                onDelete = {
+                                    dbManager.currentKdbxUri?.let { dbManager.deleteKdbxFileByUri(it) }
+                                        ?: dbManager.deleteKdbxFile(defaultFile)
+                                    refreshFileList()
+                                }
+                            )
+                        }
+                    } else {
+                        // 真正的空状态：友好提示用户如何创建默认密码本
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "暂无密码本文件",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "默认密码本：${dbManager.defaultKdbxName}（尚未创建）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "前往「生成」页生成并保存一个密码，或返回登录页创建密码本即可自动生成该文件。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 } else {
+                    // 是否已有显式选中的文件；没有时回退到默认密码本文件名高亮
+                    val hasExplicit = dbManager.hasExplicitKdbxSelection
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         kdbxFileList.forEach { fileInfo ->
                             KdbxFileEntry(
                                 fileInfo = fileInfo,
                                 isCurrent = fileInfo.uri == dbManager.currentKdbxUri ||
-                                    fileInfo.path == dbManager.currentKdbxFile?.absolutePath,
+                                    fileInfo.path == dbManager.currentKdbxFile?.absolutePath ||
+                                    (!hasExplicit && fileInfo.name == dbManager.defaultKdbxName),
                                 onSelect = { showKdbxFilePasswordDialog = fileInfo },
                                 onDelete = {
                                     android.util.Log.d("MimaDB", "onDelete clicked: name=${fileInfo.name}, isFromSaf=${fileInfo.isFromSaf}, uri=${fileInfo.uri}")
@@ -671,7 +737,16 @@ fun SettingsScreen(dbManager: DatabaseManager) {
 
         // 修改文件位置（用文件夹选择器）
         OutlinedButton(
-            onClick = { pickMoveFolderLauncher.launch(null) },
+            onClick = {
+                val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                    addFlags(
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    )
+                }
+                pickMoveFolderLauncher.launch(treeIntent)
+            },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)
         ) {
@@ -821,6 +896,40 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                         refreshFileList()
                     }
                 ) { Text("确定") }
+            }
+        )
+    }
+
+    // 清除所有数据对话框（含自动重启，方便重新创建密码本）
+    if (showClearDataDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDataDialog = false },
+            title = { Text("清除所有数据") },
+            text = {
+                Text(
+                    "将清除主密码、密码本密码、文件保存位置等全部设置，并自动重启应用以便重新创建密码本。" +
+                        "已生成的密码本文件不会被删除（如需删除请在文件管理器中手动操作）。是否继续？"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearDataDialog = false
+                        val ok = dbManager.clearAllData()
+                        // 重置内存中的解锁状态与数据库引用，保证重启后是全新状态
+                        dbManager.lock()
+                        Toast.makeText(
+                            context,
+                            if (ok) "已清除，正在重启应用…" else "清除失败，请重试",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        // 自动重启 Activity，使用户可重新创建密码本
+                        (context as? android.app.Activity)?.recreate()
+                    }
+                ) { Text("清除并重启") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDataDialog = false }) { Text("取消") }
             }
         )
     }
