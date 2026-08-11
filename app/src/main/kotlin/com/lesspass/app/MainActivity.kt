@@ -24,6 +24,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -210,6 +213,31 @@ data class GenerateScreenState(
     val excludeAmbiguous: Boolean,
 )
 
+/**
+ * 评估主密码强度。基于长度与字符种类多样性给出一个 0..1 的分数，并映射为
+ * 弱/中/强/很强四档标签与对应颜色。
+ */
+private data class PasswordStrength(val score: Float, val label: String, val color: androidx.compose.ui.graphics.Color)
+
+private fun evaluatePasswordStrength(pwd: String): PasswordStrength {
+    if (pwd.isEmpty()) return PasswordStrength(0f, "—", androidx.compose.ui.graphics.Color.Gray)
+    var types = 0
+    if (pwd.any { it.isLowerCase() }) types++
+    if (pwd.any { it.isUpperCase() }) types++
+    if (pwd.any { it.isDigit() }) types++
+    if (pwd.any { !it.isLetterOrDigit() }) types++
+    // 长度得分（12 位封顶）+ 种类得分
+    val lengthScore = (pwd.length.coerceAtMost(16) / 16f) * 0.6f
+    val typeScore = (types / 4f) * 0.4f
+    val score = (lengthScore + typeScore).coerceIn(0f, 1f)
+    return when {
+        score < 0.35f -> PasswordStrength(score, "弱", androidx.compose.ui.graphics.Color(0xFFE53935.toInt()))
+        score < 0.6f -> PasswordStrength(score, "中", androidx.compose.ui.graphics.Color(0xFFFB8C00.toInt()))
+        score < 0.85f -> PasswordStrength(score, "强", androidx.compose.ui.graphics.Color(0xFF43A047.toInt()))
+        else -> PasswordStrength(score, "很强", androidx.compose.ui.graphics.Color(0xFF1E88E5.toInt()))
+    }
+}
+
 @Composable
 fun GenerateScreen(dbManager: DatabaseManager) {
     val context = LocalContext.current
@@ -232,7 +260,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
     var symbols by remember { mutableStateOf(savedSettings.symbols) }
     var excludeAmbiguous by remember { mutableStateOf(savedSettings.excludeAmbiguous) }
     var password by remember { mutableStateOf<String?>(null) }
-    var seePassword by remember { mutableStateOf(false) }
+    var showMaster by remember { mutableStateOf(false) }
     var fingerprint by remember { mutableStateOf<List<Finger>>(emptyList()) }
     var algorithmSupported by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
@@ -276,9 +304,17 @@ fun GenerateScreen(dbManager: DatabaseManager) {
             .fillMaxSize()
             .verticalScroll(scrollState)
             .statusBarsPadding()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Text(
+            text = "密码生成",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 2.dp)
+        )
+
         OutlinedTextField(
             value = site,
             onValueChange = { site = it },
@@ -299,15 +335,25 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                 onValueChange = { masterPassword = it },
                 label = { Text(stringResource(R.string.master_password)) },
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showMaster) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    if (masterPassword.isNotEmpty()) {
+                        IconButton(onClick = { showMaster = !showMaster }) {
+                            Icon(
+                                imageVector = if (showMaster) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                contentDescription = if (showMaster) "隐藏主密码" else "显示主密码"
+                            )
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             if (masterPassword.isNotEmpty() && fingerprint.isNotEmpty()) {
                 Row(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 12.dp),
+                        .padding(end = 48.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     fingerprint.forEach { finger ->
@@ -322,17 +368,37 @@ fun GenerateScreen(dbManager: DatabaseManager) {
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OptionItem(stringResource(R.string.lowercase), lowercase) { lowercase = it }
-            OptionItem(stringResource(R.string.uppercase), uppercase) { uppercase = it }
-            OptionItem(stringResource(R.string.digits), digits) { digits = it }
-            OptionItem(stringResource(R.string.symbols), symbols) { symbols = it }
+        // 主密码强度显示
+        val strength = remember(masterPassword) { evaluatePasswordStrength(masterPassword) }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            LinearProgressIndicator(
+                progress = { strength.score },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = strength.color,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
+            Text(
+                text = if (masterPassword.isEmpty()) "主密码强度：—" else "主密码强度：${strength.label}",
+                fontSize = 12.sp,
+                color = strength.color,
+                modifier = Modifier.padding(top = 4.dp, start = 2.dp)
+            )
         }
 
         Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                OptionItem(stringResource(R.string.lowercase), lowercase) { lowercase = it }
+                OptionItem(stringResource(R.string.uppercase), uppercase) { uppercase = it }
+                OptionItem(stringResource(R.string.digits), digits) { digits = it }
+                OptionItem(stringResource(R.string.symbols), symbols) { symbols = it }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -347,7 +413,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                 text = "⚠ 开启后密码与官方 LessPass 不兼容，仅本应用内跨设备一致",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 52.dp, end = 8.dp, bottom = 4.dp)
+                modifier = Modifier.padding(start = 52.dp, top = 2.dp, end = 8.dp)
             )
         }
 
@@ -389,7 +455,6 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                 } else {
                     val pwd = LessPassEngine.generatePassword(profile, masterPassword)
                     password = pwd
-                    seePassword = true
                     showSaveDialog = true
 
                     dbManager.addHistoryEntry(
@@ -425,7 +490,6 @@ fun GenerateScreen(dbManager: DatabaseManager) {
             ) {
                 // 只重置 site 和 login，保留主密码/勾选/位数
                 password = null
-                seePassword = false
                 fingerprint = emptyList()
                 site = ""
                 login = ""
@@ -433,18 +497,30 @@ fun GenerateScreen(dbManager: DatabaseManager) {
             }
             if (password != null) {
                 SecondaryActionButton(
+                    icon = Icons.Filled.Storage,
+                    text = "保存",
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (dbManager.unlocked) {
+                        dbManager.addPasswordBookEntry(
+                            title = site,
+                            username = login,
+                            password = password!!,
+                            url = site,
+                            notes = "count=$counter, length=$length, exclude=$excludeAmbiguous\n主密码: ${masterPassword}"
+                        )
+                        dbManager.saveDatabase()
+                        Toast.makeText(context, "已保存到密码本", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "请先解锁密码本", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                SecondaryActionButton(
                     icon = Icons.Filled.ContentCopy,
                     text = stringResource(R.string.copy),
                     modifier = Modifier.weight(1f)
                 ) {
                     copyToClipboard(context, password!!, "已复制到剪贴板")
-                }
-                SecondaryActionButton(
-                    icon = if (seePassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    text = if (seePassword) stringResource(R.string.hide) else stringResource(R.string.show),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    seePassword = !seePassword
                 }
             }
         }
@@ -456,7 +532,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (seePassword) password!! else "•".repeat(password!!.length),
+                        text = password!!,
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             textAlign = TextAlign.Center
@@ -464,36 +540,26 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                     )
                 }
             }
-        }
-    }
 
-    if (showSaveDialog && password != null) {
-        Button(
-            onClick = {
-                if (dbManager.unlocked) {
-                    dbManager.addPasswordBookEntry(
-                        title = site,
-                        username = login,
-                        password = password!!,
-                        url = site,
-                        notes = "count=$counter, length=$length, exclude=$excludeAmbiguous\n主密码: ${masterPassword}"
-                    )
-                    dbManager.saveDatabase()
-                    Toast.makeText(context, "已保存到密码本", Toast.LENGTH_SHORT).show()
-                    showSaveDialog = false
-                } else {
-                    Toast.makeText(context, "请先解锁密码本", Toast.LENGTH_SHORT).show()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .padding(top = 4.dp),
-            shape = RoundedCornerShape(4.dp)
-        ) {
-            Icon(Icons.Filled.Storage, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("保存到密码本")
+            // 生成密码的强度显示
+            val pwdStrength = remember(password) { evaluatePasswordStrength(password!!) }
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                LinearProgressIndicator(
+                    progress = { pwdStrength.score },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = pwdStrength.color,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+                Text(
+                    text = "密码强度：${pwdStrength.label}",
+                    fontSize = 12.sp,
+                    color = pwdStrength.color,
+                    modifier = Modifier.padding(top = 4.dp, start = 2.dp)
+                )
+            }
         }
     }
 }
@@ -877,6 +943,7 @@ fun SettingsScreen(dbManager: DatabaseManager) {
     // 创建新密码本对话框
     if (showCreateNewDialog) {
         CreateNewDatabaseDialog(
+            dbManager = dbManager,
             onDismiss = {
                 showCreateNewDialog = false
                 pendingFolderUri = null
@@ -931,7 +998,7 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                         dbManager.lock()
                         Toast.makeText(
                             context,
-                            if (ok) "已清除，正在重启应用…" else "清除失败，请重试",
+                            if (ok) "清除完成" else "清除失败，请重试",
                             Toast.LENGTH_SHORT
                         ).show()
                         // 自动重启 Activity，使用户可重新创建密码本
@@ -949,10 +1016,11 @@ fun SettingsScreen(dbManager: DatabaseManager) {
 /** 创建新密码本对话框 */
 @Composable
 private fun CreateNewDatabaseDialog(
+    dbManager: DatabaseManager,
     onDismiss: () -> Unit,
     onConfirm: (fileName: String, password: String) -> Unit
 ) {
-    var fileName by remember { mutableStateOf("password_book") }
+    var fileName by remember { mutableStateOf(dbManager.defaultKdbxName.removeSuffix(".kdbx")) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }

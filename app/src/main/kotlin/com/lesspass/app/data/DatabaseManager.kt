@@ -2,6 +2,7 @@ package com.lesspass.app.data
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.provider.DocumentsContract
 import android.content.SharedPreferences
 import android.net.Uri
@@ -53,8 +54,18 @@ class DatabaseManager(private val context: Context) {
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
+    /** 机型标识：用于默认密码本命名，清洗为文件名安全字符 */
+    private val deviceTag: String
+        get() {
+            val raw = Build.MODEL?.trim().orEmpty().replace(Regex("[^A-Za-z0-9_-]"), "")
+            return if (raw.isBlank()) "device" else raw
+        }
+
     private val defaultDbFile: File
-        get() = File(context.filesDir, "password_book.kdbx")
+        get() = File(context.filesDir, "password_$deviceTag.kdbx")
+
+    /** 默认密码本基础名（不含扩展名），如 password_RedmiK50 */
+    private val defaultKdbxBaseName: String get() = "password_$deviceTag"
 
     /** 优先使用 URI（从文件选择器选取），否则回退到文件路径 */
     private val dbUri: Uri?
@@ -675,7 +686,7 @@ class DatabaseManager(private val context: Context) {
             val originalName = when {
                 sourceUri != null -> {
                     val sourceDoc = DocumentFile.fromSingleUri(context, sourceUri)
-                    sourceDoc?.name ?: sourceUri.lastPathSegment ?: "password_book.kdbx"
+                    sourceDoc?.name ?: sourceUri.lastPathSegment ?: "$defaultKdbxBaseName.kdbx"
                 }
                 currentKdbxFile != null -> {
                     currentKdbxFile?.name ?: "password_book.kdbx"
@@ -769,7 +780,7 @@ class DatabaseManager(private val context: Context) {
      * @param password 密码（可为空表示无加密）
      * @return Triple<Boolean, Uri?, String> (是否成功, 新文件 URI, 错误信息)
      */
-    fun createNewKdbxInFolder(folderUri: Uri, fileName: String = "password_book", password: String = ""): Triple<Boolean, Uri?, String> {
+    fun createNewKdbxInFolder(folderUri: Uri, fileName: String = defaultKdbxBaseName, password: String = ""): Triple<Boolean, Uri?, String> {
         return try {
             // 清理旧路径
             clearOldPaths(keepExternalUri = false)
@@ -894,7 +905,8 @@ class DatabaseManager(private val context: Context) {
             val parentDir = DocumentFile.fromTreeUri(context, folderUri)
                 ?: throw IOException("无法访问目标文件夹")
             val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension("kdbx") ?: "application/octet-stream"
-            val newFile = parentDir.createFile(mimeType, "password_book")
+            val newFileName = currentKdbxFile?.name ?: "$defaultKdbxBaseName.kdbx"
+            val newFile = parentDir.createFile(mimeType, newFileName)
                 ?: throw IOException("无法在目标文件夹中创建文件")
             // 把当前数据库数据写入新文件
             if (database != null) {
