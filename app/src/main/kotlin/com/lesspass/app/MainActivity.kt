@@ -119,7 +119,7 @@ fun MainScreen(dbManager: DatabaseManager, timeoutManager: TimeoutManager) {
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                    icon = { Icon(Icons.Filled.Lock, contentDescription = null) },
                     label = { Text("生成") },
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 }
@@ -303,7 +303,6 @@ fun GenerateScreen(dbManager: DatabaseManager) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
