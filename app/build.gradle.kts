@@ -13,8 +13,8 @@ android {
         applicationId = "com.lesspass.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 12
-        versionName = "2.1"
+        versionCode = 15
+        versionName = "2.4"
     }
 
     buildTypes {

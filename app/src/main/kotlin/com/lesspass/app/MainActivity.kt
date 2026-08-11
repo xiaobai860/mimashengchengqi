@@ -72,7 +72,17 @@ class MainActivity : ComponentActivity() {
                     }
                     // 无密码密码本自动解锁
                     val autoUnlock = remember { dbManager.autoUnlock }
-                    var isUnlocked by remember(autoUnlock) { mutableStateOf(dbManager.unlocked || autoUnlock) }
+                    var isUnlocked by remember { mutableStateOf(dbManager.unlocked || autoUnlock) }
+
+                    // 自动解锁（无密码密码本）：进程重启后 dbManager 尚未真正加载数据库，
+                    // 必须在进入主界面之前先 openDatabase("") 把 database 载入内存，
+                    // 否则历史记录/密码本数据会因 database==null 而显示为空。
+                    LaunchedEffect(autoUnlock) {
+                        if (autoUnlock && !dbManager.unlocked) {
+                            dbManager.openDatabase("")
+                        }
+                        isUnlocked = dbManager.unlocked || dbManager.autoUnlock
+                    }
                     Log.d("MimaDB", "onCreate state: isUnlocked=$isUnlocked autoUnlock=$autoUnlock hasDatabase=${dbManager.hasDatabase}")
                     val timeoutManager = remember { TimeoutManager(dbManager, onLock = { isUnlocked = false }) }
 
@@ -907,8 +917,9 @@ fun SettingsScreen(dbManager: DatabaseManager) {
             title = { Text("清除所有数据") },
             text = {
                 Text(
-                    "将清除主密码、密码本密码、文件保存位置等全部设置，并自动重启应用以便重新创建密码本。" +
-                        "已生成的密码本文件不会被删除（如需删除请在文件管理器中手动操作）。是否继续？"
+                    "将清除本应用所有设置，请确认。\n\n" +
+                        "注意：此操作不会删除任何密码本文件（包括应用私有目录与你在其它位置保存的密码本），" +
+                        "重启后你仍可在列表中重新选择之前的密码本继续使用。"
                 )
             },
             confirmButton = {
@@ -926,7 +937,7 @@ fun SettingsScreen(dbManager: DatabaseManager) {
                         // 自动重启 Activity，使用户可重新创建密码本
                         (context as? android.app.Activity)?.recreate()
                     }
-                ) { Text("清除并重启") }
+                ) { Text("清除", color = Color.Red) }
             },
             dismissButton = {
                 TextButton(onClick = { showClearDataDialog = false }) { Text("取消") }

@@ -252,6 +252,12 @@ class DatabaseManager(private val context: Context) {
      */
     fun createDatabase(password: String): Boolean {
         return try {
+            // 若默认密码本文件已存在（如清除数据后旧文件被保留），先将其重命名为唯一名称，
+            // 避免新建时直接覆盖用户之前的密码本数据。
+            if (dbFile.exists()) {
+                val renamed = renameFileToAvoidOverwrite(dbFile)
+                Log.d("MimaDB", "createDatabase: existing default db renamed=$renamed to avoid overwrite")
+            }
             val db = DatabaseKDBX("密码本", "根目录")
             db.kdbxVersion = UnsignedInt(0x40) // KDBX 4.0
             db.kdfEngine = KdfFactory.argon2idKdf
@@ -630,6 +636,27 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 将已存在的文件重命名为不冲突的唯一名称（append (n)），避免被新建操作覆盖。
+     * 返回是否成功重命名。
+     */
+    private fun renameFileToAvoidOverwrite(file: File): Boolean {
+        return try {
+            val name = file.name
+            val base = name.removeSuffix(".kdbx")
+            var counter = 1
+            var target: File
+            do {
+                target = File(file.parentFile, "${base}($counter).kdbx")
+                counter++
+            } while (target.exists() && counter <= 100)
+            file.renameTo(target)
+        } catch (e: Exception) {
+            Log.e("MimaDB", "renameFileToAvoidOverwrite failed", e)
+            false
+        }
+    }
+
+    /**
      * 将当前选中的文件迁移到新文件夹
      * @param newFolderUri 新文件夹 URI
      * @return Triple<Boolean, String, String> (是否成功, 新文件名, 错误信息)
@@ -972,10 +999,16 @@ class DatabaseManager(private val context: Context) {
                 .putString(KEY_DB_DISPLAY_PATH, computeDisplayPath(uri))
                 .putString(KEY_CURRENT_DB_FILE, uri.path ?: uri.toString())
                 .apply()
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
+            // 持久化权限：部分 ROM（如小米）对 SAF 文件 URI 不授予 persistable 权限，
+            // 此处失败时不应影响解锁结果，故单独 try/catch。
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                Log.w("MimaDB", "selectKdbxFile: takePersistableUriPermission failed (ignored)", e)
+            }
             updateDisplayPath()
             setHasDatabase(true)
             true
@@ -1214,15 +1247,18 @@ class DatabaseManager(private val context: Context) {
     /** 清除所有应用数据（共享偏好、缓存），保留密码本 kdbx 文件 */
     fun clearAllData(): Boolean {
         return try {
-            // 删除所有 SharedPreferences
+            // 删除所有 SharedPreferences（含主密码、密码本密码、文件保存位置等全部设置）
             prefs(context).edit().clear().apply()
-            // 删除缓存目录（不包括密码本文件）
+            // 同时清除密码生成界面的独立 SharedPreferences（含生成密码用的主密码等设置）
+            context.getSharedPreferences("generate_prefs", Context.MODE_PRIVATE).edit().clear().apply()
+            // 删除缓存目录中的临时文件（保留任何 .kdbx 密码本文件）
             context.cacheDir?.listFiles()?.forEach { file ->
-                if (file.name != "kdbx_export_*.kdbx") file.delete()
+                if (!file.name.endsWith(".kdbx", ignoreCase = true)) file.delete()
             }
-            // 删除应用文件目录中的临时文件（保留 password_book.kdbx）
+            // 删除应用私有文件目录中的临时文件，但保留所有 .kdbx 密码本文件，
+            // 方便用户清除数据后仍可在列表中重新选择之前的密码本。
             context.filesDir?.listFiles()?.forEach { file ->
-                if (file.name != "password_book.kdbx") file.delete()
+                if (!file.name.endsWith(".kdbx", ignoreCase = true)) file.delete()
             }
             true
         } catch (e: Exception) {
