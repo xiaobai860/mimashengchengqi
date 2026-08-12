@@ -13,6 +13,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import android.util.Base64
+import com.lesspass.app.R
 import java.util.concurrent.Executors
 
 /**
@@ -201,7 +202,10 @@ class CredentialStore(private val context: Context) {
                     }
                 })
             prompt.authenticate(
-                fingerprintPromptInfo("指纹解锁", "验证指纹以解锁密码本"),
+                fingerprintPromptInfo(
+                    context.getString(R.string.biometric_unlock),
+                    context.getString(R.string.unlock_subtitle_has)
+                ),
                 BiometricPrompt.CryptoObject(cipher)
             )
         } catch (e: Exception) {
@@ -213,7 +217,7 @@ class CredentialStore(private val context: Context) {
         BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setNegativeButtonText("取消")
+            .setNegativeButtonText(context.getString(R.string.cancel))
             .build()
 
     companion object {

@@ -167,25 +167,25 @@ fun MainScreen(
             NavigationBar {
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Lock, contentDescription = null) },
-                    label = { Text("生成") },
+                    label = { Text(stringResource(R.string.tab_generate)) },
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
-                    label = { Text("历史") },
+                    label = { Text(stringResource(R.string.tab_history)) },
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Storage, contentDescription = null) },
-                    label = { Text("密码本") },
+                    label = { Text(stringResource(R.string.tab_vault)) },
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                    label = { Text("设置") },
+                    label = { Text(stringResource(R.string.tab_settings)) },
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 }
                 )
@@ -195,8 +195,8 @@ fun MainScreen(
         Box(modifier = Modifier.padding(paddingValues)) {
             when (selectedTab) {
                 0 -> GenerateScreen(dbManager = dbManager)
-                1 -> HistoryScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it, "已复制到剪贴板") })
-                2 -> PasswordBookScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it, "已复制到剪贴板") })
+                1 -> HistoryScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it) })
+                2 -> PasswordBookScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it) })
                 3 -> SettingsScreen(
                     dbManager = dbManager,
                     credentialStore = credentialStore,
@@ -268,10 +268,10 @@ data class GenerateScreenState(
  * 评估主密码强度。基于长度与字符种类多样性给出一个 0..1 的分数，并映射为
  * 弱/中/强/很强四档标签与对应颜色。
  */
-private data class PasswordStrength(val score: Float, val label: String, val color: androidx.compose.ui.graphics.Color)
+private data class PasswordStrength(val score: Float, val level: Int, val color: androidx.compose.ui.graphics.Color)
 
 private fun evaluatePasswordStrength(pwd: String): PasswordStrength {
-    if (pwd.isEmpty()) return PasswordStrength(0f, "—", androidx.compose.ui.graphics.Color.Gray)
+    if (pwd.isEmpty()) return PasswordStrength(0f, 0, androidx.compose.ui.graphics.Color.Gray)
     var types = 0
     if (pwd.any { it.isLowerCase() }) types++
     if (pwd.any { it.isUpperCase() }) types++
@@ -281,12 +281,27 @@ private fun evaluatePasswordStrength(pwd: String): PasswordStrength {
     val lengthScore = (pwd.length.coerceAtMost(16) / 16f) * 0.6f
     val typeScore = (types / 4f) * 0.4f
     val score = (lengthScore + typeScore).coerceIn(0f, 1f)
-    return when {
-        score < 0.35f -> PasswordStrength(score, "弱", androidx.compose.ui.graphics.Color(0xFFE53935.toInt()))
-        score < 0.6f -> PasswordStrength(score, "中", androidx.compose.ui.graphics.Color(0xFFFB8C00.toInt()))
-        score < 0.85f -> PasswordStrength(score, "强", androidx.compose.ui.graphics.Color(0xFF43A047.toInt()))
-        else -> PasswordStrength(score, "很强", androidx.compose.ui.graphics.Color(0xFF1E88E5.toInt()))
+    val level = when {
+        score < 0.35f -> 1
+        score < 0.6f -> 2
+        score < 0.85f -> 3
+        else -> 4
     }
+    val color = when (level) {
+        1 -> androidx.compose.ui.graphics.Color(0xFFE53935.toInt())
+        2 -> androidx.compose.ui.graphics.Color(0xFFFB8C00.toInt())
+        3 -> androidx.compose.ui.graphics.Color(0xFF43A047.toInt())
+        else -> androidx.compose.ui.graphics.Color(0xFF1E88E5.toInt())
+    }
+    return PasswordStrength(score, level, color)
+}
+
+private fun strengthLabelRes(level: Int): Int = when (level) {
+    0 -> R.string.password_strength_none
+    1 -> R.string.password_strength_weak
+    2 -> R.string.password_strength_medium
+    3 -> R.string.password_strength_strong
+    else -> R.string.password_strength_very_strong
 }
 
 @Composable
@@ -332,7 +347,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
         val supported = LessPassEngine.isSupported()
         algorithmSupported = supported
         if (!supported) {
-            Toast.makeText(context, "⚠️ 算法自检失败，密码可能与官方不兼容", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.self_test_failed), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -358,7 +373,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            text = "密码生成",
+            text = stringResource(R.string.generate_title),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier
                 .fillMaxWidth()
@@ -392,7 +407,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                         IconButton(onClick = { showMaster = !showMaster }) {
                             Icon(
                                 imageVector = if (showMaster) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = if (showMaster) "隐藏主密码" else "显示主密码"
+                                contentDescription = if (showMaster) stringResource(R.string.hide_master_password) else stringResource(R.string.show_master_password)
                             )
                         }
                     }
@@ -431,7 +446,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
             Text(
-                text = if (masterPassword.isEmpty()) "主密码强度：—" else "主密码强度：${strength.label}",
+                text = if (masterPassword.isEmpty()) stringResource(R.string.password_strength_prefix) + stringResource(R.string.password_strength_none) else stringResource(R.string.password_strength_prefix) + stringResource(strengthLabelRes(strength.level)),
                 fontSize = 12.sp,
                 color = strength.color,
                 modifier = Modifier.padding(top = 4.dp, start = 2.dp)
@@ -455,12 +470,12 @@ fun GenerateScreen(dbManager: DatabaseManager) {
             ) {
                 Checkbox(checked = excludeAmbiguous, onCheckedChange = { excludeAmbiguous = it })
                 Text(
-                    text = "排除近似字符 (0/O/o, 1/l/I/i, |, `)",
+                    text = stringResource(R.string.exclude_ambiguous),
                     fontSize = 14.sp,
                 )
             }
             Text(
-                text = "⚠ 开启后密码与官方 LessPass 不兼容，仅本应用内跨设备一致",
+                text = stringResource(R.string.exclude_ambiguous_warning),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 52.dp, top = 2.dp, end = 8.dp)
@@ -547,7 +562,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
             if (password != null) {
                 SecondaryActionButton(
                     icon = Icons.Filled.Storage,
-                    text = "保存",
+                    text = stringResource(R.string.save),
                     modifier = Modifier.weight(1f)
                 ) {
                     if (dbManager.unlocked) {
@@ -560,9 +575,9 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                             masterPassword = masterPassword
                         )
                         dbManager.saveDatabase()
-                        Toast.makeText(context, "已保存到密码本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "请先解锁密码本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.unlock_vault_first), Toast.LENGTH_SHORT).show()
                     }
                 }
                 SecondaryActionButton(
@@ -570,7 +585,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                     text = stringResource(R.string.copy),
                     modifier = Modifier.weight(1f)
                 ) {
-                    copyToClipboard(context, password!!, "已复制到剪贴板")
+                    copyToClipboard(context, password!!)
                 }
             }
         }
@@ -604,7 +619,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 )
                 Text(
-                    text = "密码强度：${pwdStrength.label}",
+                    text = stringResource(R.string.password_strength_of) + stringResource(strengthLabelRes(pwdStrength.level)),
                     fontSize = 12.sp,
                     color = pwdStrength.color,
                     modifier = Modifier.padding(top = 4.dp, start = 2.dp)
@@ -692,15 +707,15 @@ fun SettingsScreen(
         val errorMsg = result.third
         if (success) {
             if (newName.contains("(")) {
-                migrationResultMessage = "检测到新目录中已存在同名文件，已自动将迁移的密码本重命名为 $newName"
+                migrationResultMessage = context.getString(R.string.renamed_migrated, newName)
             } else {
-                migrationResultMessage = "密码本已成功迁移到新位置"
+                migrationResultMessage = context.getString(R.string.migrated_success)
             }
             showMigrationResultDialog = true
             Toast.makeText(context, migrationResultMessage, Toast.LENGTH_LONG).show()
             refreshFileList()
         } else {
-            moveError = errorMsg.ifBlank { "迁移失败，请重试" }
+            moveError = errorMsg.ifBlank { context.getString(R.string.migrate_failed) }
         }
         showMigrateConfirmDialog = false
         pendingFolderUri = null
@@ -713,12 +728,12 @@ fun SettingsScreen(
         val success = result.first
         val errorMsg = result.third
         if (success) {
-            migrationResultMessage = "新密码本已创建成功"
+            migrationResultMessage = context.getString(R.string.new_vault_created)
             showMigrationResultDialog = true
-            Toast.makeText(context, "新密码本创建成功", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, migrationResultMessage, Toast.LENGTH_SHORT).show()
             refreshFileList()
         } else {
-            moveError = errorMsg.ifBlank { "创建失败，请重试" }
+            moveError = errorMsg.ifBlank { context.getString(R.string.create_failed) }
         }
         showCreateNewDialog = false
         pendingFolderUri = null
@@ -734,7 +749,7 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("设置", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge)
 
         // ==================== 安全设置 ====================
         Surface(
@@ -743,7 +758,7 @@ fun SettingsScreen(
             tonalElevation = 1.dp
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("安全设置", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.security_settings), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
 
                 // 超时锁定
@@ -752,12 +767,12 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("超时锁定", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.timeout_lock_title), style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            when {
-                                !hasPassword -> "未设置密码本密码时不可用（锁定后将无法解锁）"
-                                autoUnlock -> "无操作一段时间后自动锁定（自动解锁开启时已禁用）"
-                                else -> "无操作一段时间后自动锁定"
+                            if (!hasPassword) {
+                                stringResource(R.string.timeout_lock_no_password)
+                            } else {
+                                stringResource(R.string.timeout_lock_summary)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -777,13 +792,13 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("锁定时长", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.lock_duration), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         ExposedDropdownMenuBox(
                             expanded = timeoutExpanded,
                             onExpandedChange = { timeoutExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = "${timeoutMinutes} 分钟",
+                                value = stringResource(R.string.minutes, timeoutMinutes),
                                 onValueChange = {},
                                 readOnly = true,
                                 modifier = Modifier.menuAnchor().width(120.dp),
@@ -796,7 +811,7 @@ fun SettingsScreen(
                             ) {
                                 timeoutOptions.forEach { opt ->
                                     DropdownMenuItem(
-                                        text = { Text("$opt 分钟") },
+                                        text = { Text(stringResource(R.string.minutes, opt)) },
                                         onClick = {
                                             timeoutMinutes = opt
                                             dbManager.setTimeoutMinutes(opt)
@@ -817,9 +832,9 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("自动解锁", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.auto_unlock_title), style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "开启后进入应用自动解锁密码本（需保存密码本密码）",
+                            stringResource(R.string.auto_unlock_summary),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -834,7 +849,7 @@ fun SettingsScreen(
                                     dbManager.setAutoUnlock(true)
                                     autoUnlock = true
                                 } else {
-                                    fpSnackbar = "请先解锁密码本后再开启自动解锁"
+                                    fpSnackbar = context.getString(R.string.unlock_first_auto_unlock)
                                 }
                             } else {
                                 credentialStore.clearAutoPassword(dbManager.vaultId)
@@ -846,7 +861,7 @@ fun SettingsScreen(
                 }
                 if (autoUnlock) {
                     Text(
-                        "已为本密码本启用自动解锁",
+                        stringResource(R.string.auto_unlock_enabled),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 4.dp)
@@ -861,16 +876,16 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("指纹解锁", style = MaterialTheme.typography.bodyMedium)
-                        val vaultName = dbManager.currentKdbxFile?.name ?: dbManager.currentKdbxUri?.lastPathSegment ?: "当前密码本"
+                        Text(stringResource(R.string.fingerprint_unlock), style = MaterialTheme.typography.bodyMedium)
+                        val vaultName = dbManager.currentKdbxFile?.name ?: dbManager.currentKdbxUri?.lastPathSegment ?: stringResource(R.string.current_vault_fallback)
                         Text(
-                            "${vaultName}：${if (fpEnabled) "已设置" else "未设置"}",
+                            "${vaultName}：${if (fpEnabled) stringResource(R.string.fingerprint_set) else stringResource(R.string.fingerprint_not_set)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (fpEnabled) {
                             Text(
-                                "切换其他密码本后需重新设置",
+                                stringResource(R.string.fingerprint_switch_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -882,7 +897,7 @@ fun SettingsScreen(
                             onClick = {
                                 val activity = context as? androidx.fragment.app.FragmentActivity
                                 if (activity == null || !dbManager.unlocked) {
-                                    fpSnackbar = "请先解锁密码本后再设置指纹"
+                                    fpSnackbar = context.getString(R.string.unlock_vault_first_fingerprint)
                                     return@Button
                                 }
                                 credentialStore.setupFingerprintPassword(
@@ -891,21 +906,21 @@ fun SettingsScreen(
                                     activity = activity,
                                     onSuccess = {
                                         fpEnabled = true
-                                        fpSnackbar = "已为当前密码本启用指纹解锁"
+                                        fpSnackbar = context.getString(R.string.fingerprint_enabled_toast)
                                     },
                                     onError = { fpSnackbar = it }
                                 )
                             }
                         ) {
-                            Text("设置指纹")
+                            Text(stringResource(R.string.setup_fingerprint))
                         }
                     } else {
                         OutlinedButton(onClick = {
                             credentialStore.clearFingerprintPassword(dbManager.vaultId)
                             fpEnabled = false
-                            fpSnackbar = "已清除指纹解锁"
+                            fpSnackbar = context.getString(R.string.fingerprint_cleared_toast)
                         }) {
-                            Text("清除")
+                            Text(stringResource(R.string.clear_fingerprint))
                         }
                     }
                 }
@@ -931,23 +946,23 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("密码本状态", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.vault_status), style = MaterialTheme.typography.titleMedium)
                     TextButton(
                         onClick = { refreshFileList() },
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
                     ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "刷新", modifier = Modifier.size(16.dp))
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.refresh_desc), modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(2.dp))
-                        Text("刷新", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.refresh), style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
 
                 // 状态信息
-                Text("文件路径: $displayPath", style = MaterialTheme.typography.bodySmall)
-                Text("已加密: ${if (dbManager.hasPassword) "是" else "否"}", style = MaterialTheme.typography.bodySmall)
-                Text("文件数量: ${kdbxFileList.size} 个", style = MaterialTheme.typography.bodySmall)
-                Text("当前版本: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.file_path, displayPath), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.encrypted, if (dbManager.hasPassword) stringResource(R.string.yes) else stringResource(R.string.no)), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.file_count, kdbxFileList.size), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(10.dp))
 
                 // 文件列表
@@ -986,17 +1001,17 @@ fun SettingsScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                "暂无密码本文件",
+                                stringResource(R.string.no_vault_files),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                "默认密码本：${dbManager.defaultKdbxName}（尚未创建）",
+                                stringResource(R.string.default_vault_not_created, dbManager.defaultKdbxName),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                "前往「生成」页生成并保存一个密码，或返回登录页创建密码本即可自动生成该文件。",
+                                stringResource(R.string.create_vault_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1043,7 +1058,7 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.Filled.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("清除所有数据")
+                    Text(stringResource(R.string.clear_all_data))
                 }
             }
         }
@@ -1056,7 +1071,7 @@ fun SettingsScreen(
         ) {
             Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(if (dbManager.hasPassword) "修改 KDBX 密码" else "设置 KDBX 密码")
+            Text(if (dbManager.hasPassword) stringResource(R.string.change_kdbx_password) else stringResource(R.string.set_kdbx_password))
         }
 
         // 修改文件位置（用文件夹选择器，传统 startActivityForResult，固定合法 requestCode）
@@ -1072,7 +1087,7 @@ fun SettingsScreen(
         ) {
             Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("修改文件保存位置")
+            Text(stringResource(R.string.modify_file_location))
         }
         moveError?.let {
             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -1098,10 +1113,10 @@ fun SettingsScreen(
                         putExtra(Intent.EXTRA_STREAM, fileUri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, "分享 KDBX 文件"))
+                    context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_kdbx)))
                     exportError = null
                 } catch (e: Exception) {
-                    exportError = "导出失败：${e.message}"
+                    exportError = context.getString(R.string.export_failed, e.message ?: "")
                     e.printStackTrace()
                 }
             },
@@ -1110,7 +1125,7 @@ fun SettingsScreen(
         ) {
             Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("导出 KDBX 文件")
+            Text(stringResource(R.string.export_kdbx_dialog))
         }
         exportError?.let {
             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -1125,7 +1140,7 @@ fun SettingsScreen(
             onSuccess = {
                 showKdbxFilePasswordDialog = null
                 refreshFileList()
-                Toast.makeText(context, "已切换", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.switched), Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -1146,18 +1161,18 @@ fun SettingsScreen(
                 showMigrateConfirmDialog = false
                 pendingFolderUri = null
             },
-            title = { Text("修改保存位置") },
+            title = { Text(stringResource(R.string.migrate_location_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("您已选择了新的保存位置。")
-                    Text("请选择如何处理当前的密码本：")
+                    Text(stringResource(R.string.migrate_location_msg))
+                    Text(stringResource(R.string.migrate_location_choose))
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "• 迁移当前密码本到新位置",
+                        stringResource(R.string.migrate_current),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        "• 在新位置创建一个新的空密码本",
+                        stringResource(R.string.create_new_at_location),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -1165,15 +1180,9 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // 检查是否有当前选中的文件
-                        if (dbManager.currentKdbxUri != null || dbManager.currentKdbxFile != null) {
-                            performMigration()
-                        } else {
-                            // 没有当前文件，直接迁移数据库
-                            performMigration()
-                        }
+                        performMigration()
                     }
-                ) { Text("迁移") }
+                ) { Text(stringResource(R.string.migrate)) }
             },
             dismissButton = {
                 TextButton(
@@ -1181,7 +1190,7 @@ fun SettingsScreen(
                         showMigrateConfirmDialog = false
                         showCreateNewDialog = true
                     }
-                ) { Text("创建新密码本") }
+                ) { Text(stringResource(R.string.create_new_vault_action)) }
             }
         )
     }
@@ -1207,9 +1216,9 @@ fun SettingsScreen(
                 showMigrationResultDialog = false
                 migrationResultMessage = null
             },
-            title = { Text("操作完成") },
+            title = { Text(stringResource(R.string.operation_done)) },
             text = {
-                Text(migrationResultMessage ?: "操作已完成")
+                Text(migrationResultMessage ?: stringResource(R.string.operation_done_default))
             },
             confirmButton = {
                 TextButton(
@@ -1218,7 +1227,7 @@ fun SettingsScreen(
                         migrationResultMessage = null
                         refreshFileList()
                     }
-                ) { Text("确定") }
+                ) { Text(stringResource(R.string.ok)) }
             }
         )
     }
@@ -1227,13 +1236,9 @@ fun SettingsScreen(
     if (showClearDataDialog) {
         AlertDialog(
             onDismissRequest = { showClearDataDialog = false },
-            title = { Text("清除所有数据") },
+            title = { Text(stringResource(R.string.clear_all_data_title)) },
             text = {
-                Text(
-                    "将清除本应用所有设置，请确认。\n\n" +
-                        "注意：此操作不会删除任何密码本文件（包括应用私有目录与你在其它位置保存的密码本），" +
-                        "重启后你仍可在列表中重新选择之前的密码本继续使用。"
-                )
+                Text(stringResource(R.string.clear_all_data_msg))
             },
             confirmButton = {
                 TextButton(
@@ -1244,16 +1249,16 @@ fun SettingsScreen(
                         dbManager.lock()
                         Toast.makeText(
                             context,
-                            if (ok) "清除完成" else "清除失败，请重试",
+                            if (ok) context.getString(R.string.clear_done) else context.getString(R.string.clear_failed),
                             Toast.LENGTH_SHORT
                         ).show()
                         // 自动重启 Activity，使用户可重新创建密码本
                         (context as? android.app.Activity)?.recreate()
                     }
-                ) { Text("清除", color = Color.Red) }
+                ) { Text(stringResource(R.string.clear_all_data), color = Color.Red) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDataDialog = false }) { Text("取消") }
+                TextButton(onClick = { showClearDataDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -1270,24 +1275,25 @@ private fun CreateNewDatabaseDialog(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("创建新密码本") },
+        title = { Text(stringResource(R.string.create_vault_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("将在新位置创建一个空的密码本", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.create_vault_hint2), style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
                     value = fileName,
                     onValueChange = { fileName = it },
-                    label = { Text("文件名（不含扩展名）") },
+                    label = { Text(stringResource(R.string.file_name_no_ext)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("密码（可留空，表示无加密）") },
+                    label = { Text(stringResource(R.string.password_optional)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -1296,14 +1302,14 @@ private fun CreateNewDatabaseDialog(
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text("确认密码") },
+                    label = { Text(stringResource(R.string.confirm_password_label)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth()
                 )
-                errorMessage?.let { 
-                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) 
+                errorMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
             }
         },
@@ -1311,19 +1317,19 @@ private fun CreateNewDatabaseDialog(
             TextButton(
                 onClick = {
                     if (fileName.isBlank()) {
-                        errorMessage = "文件名不能为空"
+                        errorMessage = context.getString(R.string.file_name_empty)
                         return@TextButton
                     }
                     if (password != confirmPassword) {
-                        errorMessage = "两次输入的密码不一致"
+                        errorMessage = context.getString(R.string.passwords_mismatch)
                         return@TextButton
                     }
                     onConfirm(fileName, password)
                 }
-            ) { Text("创建") }
+            ) { Text(stringResource(R.string.create_action)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -1341,13 +1347,13 @@ private fun ExternalKdbxPasswordDialog(
     var error by remember { mutableStateOf<String?>(null) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("输入密码本密码") },
+        title = { Text(stringResource(R.string.input_vault_password_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 androidx.compose.material3.OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("密码本密码（可留空）") },
+                    label = { Text(stringResource(R.string.vault_password_optional_label)) },
                     singleLine = true,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     modifier = androidx.compose.ui.Modifier.fillMaxWidth()
@@ -1361,13 +1367,13 @@ private fun ExternalKdbxPasswordDialog(
                     if (dbManager.openExternalKdbx(uri, password)) {
                         onSuccess()
                     } else {
-                        error = "密码错误，请重试"
+                        error = context.getString(R.string.wrong_password)
                     }
                 }
-            ) { Text("确认") }
+            ) { Text(stringResource(R.string.ok)) }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("取消") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -1422,14 +1428,14 @@ private fun KdbxFileEntry(
                 }
             }
             if (isCurrent) {
-                Text("（当前）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.current_marker), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             } else {
                 TextButton(onClick = onSelect, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
-                    Text("选择", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.select_action), style = MaterialTheme.typography.labelSmall)
                 }
                 Spacer(Modifier.width(4.dp))
                 TextButton(onClick = onDelete, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
-                    Text("删除", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete_action), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -1469,14 +1475,14 @@ private fun KdbxFilePasswordDialog(
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("输入密码本密码") },
+        title = { Text(stringResource(R.string.input_vault_password_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("文件：${fileInfo.name}", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.file_colon, fileInfo.name), style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("密码本密码（可留空）") },
+                    label = { Text(stringResource(R.string.vault_password_optional_label)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
@@ -1490,13 +1496,13 @@ private fun KdbxFilePasswordDialog(
                     if (dbManager.selectKdbxFile(fileInfo.uri, password)) {
                         onSuccess()
                     } else {
-                        error = "密码错误，请重试"
+                        error = context.getString(R.string.wrong_password)
                     }
                 }
-            ) { Text("确认") }
+            ) { Text(stringResource(R.string.ok)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -1516,14 +1522,14 @@ private fun ChangePasswordDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("修改 KDBX 密码") },
+        title = { Text(stringResource(R.string.change_password)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (dbManager.hasPassword) {
                     OutlinedTextField(
                         value = oldPassword,
                         onValueChange = { oldPassword = it },
-                        label = { Text("当前密码") },
+                        label = { Text(stringResource(R.string.current_password_label)) },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
@@ -1532,7 +1538,7 @@ private fun ChangePasswordDialog(
                 OutlinedTextField(
                     value = newPassword,
                     onValueChange = { newPassword = it },
-                    label = { Text("新密码（留空表示不加密）") },
+                    label = { Text(stringResource(R.string.new_password_label)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
@@ -1540,7 +1546,7 @@ private fun ChangePasswordDialog(
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text("确认新密码") },
+                    label = { Text(stringResource(R.string.confirm_new_password_label)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
@@ -1552,11 +1558,11 @@ private fun ChangePasswordDialog(
             TextButton(
                 onClick = {
                     if (dbManager.hasPassword && oldPassword != dbManager.masterPasswordValue) {
-                        errorMessage = "当前密码不正确"
+                        errorMessage = context.getString(R.string.old_password_incorrect)
                         return@TextButton
                     }
                     if (newPassword.isNotEmpty() && confirmPassword != newPassword) {
-                        errorMessage = "两次输入的新密码不一致"
+                        errorMessage = context.getString(R.string.new_passwords_mismatch)
                         return@TextButton
                     }
                     if (dbManager.changePassword(oldPassword, newPassword)) {
@@ -1567,24 +1573,24 @@ private fun ChangePasswordDialog(
                             onPasswordChanged()
                             Toast.makeText(
                                 context,
-                                "密码修改成功，指纹解锁已失效，请重新设置",
+                                context.getString(R.string.password_changed_fingerprint_invalid),
                                 Toast.LENGTH_LONG
                             ).show()
                         } else {
-                            Toast.makeText(context, "密码修改成功", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.password_changed_success), Toast.LENGTH_SHORT).show()
                         }
                         onDismiss()
                     } else {
-                        errorMessage = "密码修改失败"
+                        errorMessage = context.getString(R.string.password_change_failed)
                     }
                 },
                 enabled = true
             ) {
-                Text("确认")
+                Text(stringResource(R.string.ok))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -1620,7 +1626,7 @@ private fun CounterStepper(
                 onClick = { onValueChange(value - 1) },
                 modifier = Modifier.weight(1f)
             ) {
-                Icon(Icons.Filled.Remove, contentDescription = "decrease", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.decrease_desc), tint = MaterialTheme.colorScheme.onPrimary)
             }
             Box(
                 modifier = Modifier
@@ -1639,7 +1645,7 @@ private fun CounterStepper(
                 onClick = { onValueChange(value + 1) },
                 modifier = Modifier.weight(1f)
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "increase", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.increase_desc), tint = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }
@@ -1722,9 +1728,9 @@ private fun parseColor(hex: String): Color {
     }
 }
 
-private fun copyToClipboard(context: Context, text: String, message: String) {
+private fun copyToClipboard(context: Context, text: String, message: String? = null) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("密码生成器", text)
+    val clip = ClipData.newPlainText(context.getString(R.string.clipboard_label), text)
     clipboard.setPrimaryClip(clip)
-    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, message ?: context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
 }

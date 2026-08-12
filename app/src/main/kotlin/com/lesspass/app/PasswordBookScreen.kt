@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.kunzisoft.keepass.database.element.entry.EntryKDBX
@@ -53,11 +54,11 @@ fun PasswordBookScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("密码本", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.vault_title), style = MaterialTheme.typography.titleLarge)
             FilledTonalButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("手动添加")
+                Text(stringResource(R.string.add_manually))
             }
         }
 
@@ -66,7 +67,7 @@ fun PasswordBookScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("密码本为空，生成密码时点击保存即可添加", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.vault_empty_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(
@@ -147,8 +148,8 @@ private fun PasswordBookCard(
                     Text(entry.username, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Row {
-                    IconButton(onClick = onCopy) { Icon(Icons.Filled.ContentCopy, contentDescription = "复制") }
-                    IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "删除") }
+                    IconButton(onClick = onCopy) { Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy_desc)) }
+                    IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete_desc)) }
                 }
             }
             Text(
@@ -163,7 +164,7 @@ private fun PasswordBookCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "主密码: ${if (showMp) mp else "•".repeat(mp.length.coerceAtLeast(6))}",
+                        text = stringResource(R.string.master_password_prefix, if (showMp) mp else "•".repeat(mp.length.coerceAtLeast(6))),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
@@ -171,7 +172,7 @@ private fun PasswordBookCard(
                     IconButton(onClick = { showMp = !showMp }) {
                         Icon(
                             if (showMp) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                            contentDescription = if (showMp) "隐藏主密码" else "显示主密码"
+                            contentDescription = if (showMp) stringResource(R.string.hide_master_password) else stringResource(R.string.show_master_password)
                         )
                     }
                 }

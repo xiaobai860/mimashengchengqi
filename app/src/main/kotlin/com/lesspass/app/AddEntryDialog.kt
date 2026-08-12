@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -19,41 +20,41 @@ fun AddEntryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加密码条目") },
+        title = { Text(stringResource(R.string.vault_add_entry)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("标题") },
+                    label = { Text(stringResource(R.string.vault_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
-                    label = { Text("用户名") },
+                    label = { Text(stringResource(R.string.vault_username)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("密码") },
+                    label = { Text(stringResource(R.string.vault_password)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text("网址") },
+                    label = { Text(stringResource(R.string.vault_url)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("备注") },
+                    label = { Text(stringResource(R.string.vault_notes)) },
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -64,11 +65,11 @@ fun AddEntryDialog(
                 onClick = { onConfirm(title, username, password, url, notes) },
                 enabled = title.isNotBlank() && password.isNotBlank()
             ) {
-                Text("保存")
+                Text(stringResource(R.string.vault_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.vault_cancel)) }
         }
     )
 }

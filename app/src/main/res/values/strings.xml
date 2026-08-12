@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">密码生成器</string>
+    <string name="app_name">Password Generator</string>
     <!-- Titles -->
-    <string name="title">密码生成器</string>
-    <string name="subtitle">无状态密码管理器 — 记住一个主密码</string>
+    <string name="title">Password Generator</string>
+    <string name="subtitle">Stateless password manager — remember one master password</string>
     <!-- Fields -->
     <string name="site">Site</string>
     <string name="login">Login</string>
@@ -12,7 +12,7 @@
     <string name="lowercase">a-z</string>
     <string name="uppercase">A-Z</string>
     <string name="digits">0-9</string>
-    <string name="symbols">!@%%</string>
+    <string name="symbols">!@%</string>
     <string name="length">Length</string>
     <string name="counter">Counter</string>
     <!-- Buttons -->
@@ -25,4 +25,168 @@
     <string name="site_required">Site is required</string>
     <string name="master_password_required">Master Password is required</string>
     <string name="copied">Copied to clipboard</string>
+    <!-- Settings: Timeout lock -->
+    <string name="timeout_lock_no_password">Unavailable when the vault has no password</string>
+    <string name="timeout_lock_summary">Auto-lock after a period of inactivity</string>
+    <!-- Settings: Auto unlock -->
+    <string name="auto_unlock_summary">Auto-unlock the vault when opening the app</string>
+    <!-- Tabs -->
+    <string name="tab_generate">Generate</string>
+    <string name="tab_history">History</string>
+    <string name="tab_vault">Vault</string>
+    <string name="tab_settings">Settings</string>
+    <!-- Generate screen -->
+    <string name="generate_title">Password Generator</string>
+    <string name="password_strength_prefix">Master password strength:</string>
+    <string name="password_strength_none">None</string>
+    <string name="password_strength_weak">Weak</string>
+    <string name="password_strength_medium">Medium</string>
+    <string name="password_strength_strong">Strong</string>
+    <string name="password_strength_very_strong">Very Strong</string>
+    <string name="password_strength_of">Password strength:</string>
+    <string name="exclude_ambiguous">Exclude similar characters (0/O/o, 1/l/I/i, |, `)</string>
+    <string name="exclude_ambiguous_warning">⚠ Enabling this makes passwords incompatible with official LessPass; consistency is only guaranteed across devices within this app</string>
+    <string name="self_test_failed">⚠ Algorithm self-test failed, passwords may be incompatible with the official version</string>
+    <string name="testing">Testing…</string>
+    <string name="save">Save</string>
+    <string name="saved_to_vault">Saved to password book</string>
+    <string name="unlock_vault_first">Unlock the password book first</string>
+    <string name="master_password_strength_desc">Master password strength</string>
+    <string name="show_master_password">Show master password</string>
+    <string name="hide_master_password">Hide master password</string>
+    <string name="clipboard_label">Password Generator</string>
+    <!-- History screen -->
+    <string name="history_empty">No history yet, generate a password</string>
+    <string name="no_login">No login</string>
+    <string name="copy_desc">Copy</string>
+    <string name="delete_desc">Delete</string>
+    <!-- Vault screen -->
+    <string name="vault_title">Password Book</string>
+    <string name="search_vault">Search password book…</string>
+    <string name="all">All</string>
+    <string name="open_vault">Open Password Book</string>
+    <string name="create_new_vault">Create New Password Book</string>
+    <string name="vault_name">Name</string>
+    <string name="vault_username">Username</string>
+    <string name="vault_password">Password</string>
+    <string name="vault_url">URL</string>
+    <string name="vault_notes">Notes</string>
+    <string name="vault_type">Type</string>
+    <string name="vault_login">Login</string>
+    <string name="vault_card">Card</string>
+    <string name="vault_add_entry">Add Entry</string>
+    <string name="vault_empty">No entries yet</string>
+    <string name="vault_save">Save</string>
+    <string name="vault_cancel">Cancel</string>
+    <!-- Unlock screen -->
+    <string name="unlock_title">Unlock Password Book</string>
+    <string name="unlock_vault">Unlock Vault</string>
+    <string name="unlock_subtitle">Enter the master password to unlock</string>
+    <string name="unlock_no_password_needed">This password book has no password, unlock directly</string>
+    <string name="unlocked">Unlocked</string>
+    <string name="change_password">Change Password</string>
+    <string name="create_password">Set Password</string>
+    <string name="create_password_book">Create Password Book</string>
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="security_settings">Security Settings</string>
+    <string name="timeout_lock_title">Timeout Lock</string>
+    <string name="lock_duration">Lock duration</string>
+    <string name="minutes">%1$d min</string>
+    <string name="auto_unlock_title">Auto Unlock</string>
+    <string name="auto_unlock_enabled">Auto-unlock has been enabled for this password book</string>
+    <string name="fingerprint_unlock">Fingerprint Unlock</string>
+    <string name="fingerprint_set">Set</string>
+    <string name="fingerprint_not_set">Not set</string>
+    <string name="fingerprint_switch_hint">Re-setup required after switching to another password book</string>
+    <string name="setup_fingerprint">Set Fingerprint</string>
+    <string name="clear_fingerprint">Clear</string>
+    <string name="unlock_vault_first_fingerprint">Unlock the password book before setting up fingerprint</string>
+    <string name="fingerprint_enabled_toast">Fingerprint unlock enabled for the current password book</string>
+    <string name="fingerprint_cleared_toast">Fingerprint unlock cleared</string>
+    <string name="vault_status">Vault Status</string>
+    <string name="refresh">Refresh</string>
+    <string name="refresh_desc">Refresh</string>
+    <string name="file_path">File path: %1$s</string>
+    <string name="encrypted">Encrypted: %1$s</string>
+    <string name="file_count">Number of files: %1$d</string>
+    <string name="version">Current version: %1$s (%2$d)</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="no_vault_files">No password book files</string>
+    <string name="default_vault_not_created">Default password book: %1$s (not yet created)</string>
+    <string name="create_vault_hint">Go to the \"Generate\" tab to generate and save a password, or return to the unlock screen to create a password book and the file will be generated automatically.</string>
+    <string name="clear_all_data">Clear All Data</string>
+    <string name="change_kdbx_password">Change KDBX Password</string>
+    <string name="set_kdbx_password">Set KDBX Password</string>
+    <string name="modify_file_location">Modify File Save Location</string>
+    <string name="export_kdbx">Export KDBX File</string>
+    <string name="share_kdbx">Share KDBX File</string>
+    <string name="export_failed">Export failed: %1$s</string>
+    <string name="switched">Switched</string>
+    <!-- Dialogs -->
+    <string name="migrate_location_title">Modify Save Location</string>
+    <string name="migrate_location_msg">You have selected a new save location.</string>
+    <string name="migrate_location_choose">Please choose how to handle the current password book:</string>
+    <string name="migrate_current">• Migrate the current password book to the new location</string>
+    <string name="create_new_at_location">• Create a new empty password book at the new location</string>
+    <string name="migrate">Migrate</string>
+    <string name="create_new_vault_action">Create New Password Book</string>
+    <string name="create_vault_title">Create New Password Book</string>
+    <string name="create_vault_hint2">An empty password book will be created at the new location</string>
+    <string name="file_name_no_ext">File name (without extension)</string>
+    <string name="password_optional">Password (can be left empty for no encryption)</string>
+    <string name="confirm_password_label">Confirm Password</string>
+    <string name="file_name_empty">File name cannot be empty</string>
+    <string name="passwords_mismatch">The two passwords do not match</string>
+    <string name="create_action">Create</string>
+    <string name="input_vault_password_title">Enter Password Book Password</string>
+    <string name="vault_password_optional_label">Password book password (can be left empty)</string>
+    <string name="wrong_password">Wrong password, please try again</string>
+    <string name="file_colon">File: %1$s</string>
+    <string name="operation_done">Operation Completed</string>
+    <string name="operation_done_default">Operation completed</string>
+    <string name="ok">OK</string>
+    <string name="clear_all_data_title">Clear All Data</string>
+    <string name="clear_all_data_msg">This will clear all app settings. Please confirm.\n\nNote: This operation will NOT delete any password book files (including files in the app private directory and other locations you saved). After restart, you can still reselect previous password books from the list to continue using them.</string>
+    <string name="clear_done">Clear completed</string>
+    <string name="clear_failed">Clear failed, please try again</string>
+    <string name="current_password_label">Current Password</string>
+    <string name="new_password_label">New password (leave empty for no encryption)</string>
+    <string name="confirm_new_password_label">Confirm New Password</string>
+    <string name="old_password_incorrect">Current password is incorrect</string>
+    <string name="new_passwords_mismatch">The two new passwords do not match</string>
+    <string name="password_changed_fingerprint_invalid">Password changed successfully. Fingerprint unlock is now invalid; please set it up again</string>
+    <string name="password_changed_success">Password changed successfully</string>
+    <string name="password_change_failed">Password change failed</string>
+    <string name="decrease_desc">decrease</string>
+    <string name="increase_desc">increase</string>
+    <!-- Vault list entries -->
+    <string name="current_marker">（Current）</string>
+    <string name="select_action">Select</string>
+    <string name="delete_action">Delete</string>
+    <string name="migrated_success">Password book migrated to the new location successfully</string>
+    <string name="renamed_migrated">A file with the same name already exists in the new directory; the migrated password book was automatically renamed to %1$s</string>
+    <string name="new_vault_created">New password book created successfully</string>
+    <string name="migrate_failed">Migration failed, please try again</string>
+    <string name="create_failed">Creation failed, please try again</string>
+    <string name="unlock_first_auto_unlock">Unlock the password book before enabling auto-unlock</string>
+    <string name="current_vault_fallback">Current Password Book</string>
+    <!-- Unlock screen strings -->
+    <string name="unlock_heading">Password Book</string>
+    <string name="unlock_subtitle_has">Enter the vault password to unlock (can be left empty)</string>
+    <string name="unlock_subtitle_create">Create a new password book (password can be left empty)</string>
+    <string name="vault_password_create_hint">Vault password (empty means no encryption)</string>
+    <string name="create_vault_failed">Failed to create password book, please try again</string>
+    <string name="unlock_button">Unlock</string>
+    <string name="create_vault_button">Create Password Book</string>
+    <string name="biometric_unlock">Fingerprint Unlock</string>
+    <string name="biometric_unlock_not_set">Fingerprint Unlock (not set)</string>
+    <string name="unlock_failed_retry">Unlock failed, please retry or use password</string>
+    <string name="fingerprint_not_set_hint">Fingerprint unlock not set, please enable it in Settings first</string>
+    <string name="vault_empty_hint">Password book is empty; generate a password and tap Save to add it</string>
+    <string name="add_manually">Add Manually</string>
+    <string name="master_password_prefix">Master password: %1$s</string>
+    <string name="export_kdbx_dialog">Export KDBX File</string>
+    <string name="cancel">Cancel</string>
 </resources>

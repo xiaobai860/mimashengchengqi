@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lesspass.app.data.DatabaseManager
@@ -60,13 +61,13 @@ fun UnlockScreen(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            "密码本",
+            stringResource(R.string.unlock_heading),
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            if (hasDatabase) "输入密码本密码解锁（可留空）" else "创建新密码本（密码可留空）",
+            if (hasDatabase) stringResource(R.string.unlock_subtitle_has) else stringResource(R.string.unlock_subtitle_create),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -75,7 +76,7 @@ fun UnlockScreen(
         OutlinedTextField(
             value = databasePassword,
             onValueChange = { databasePassword = it },
-            label = { Text("密码本密码（留空表示不加密）") },
+            label = { Text(stringResource(R.string.vault_password_create_hint)) },
             singleLine = true,
             visualTransformation = if (showPassword) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -120,14 +121,14 @@ fun UnlockScreen(
                         onUnlocked()
                     } else {
                         isLoading = false
-                        errorMessage = "密码错误，请重试"
+                        errorMessage = context.getString(R.string.wrong_password)
                     }
                 } else {
                     if (dbManager.createDatabase(databasePassword)) {
                         onUnlocked()
                     } else {
                         isLoading = false
-                        errorMessage = "创建密码本失败，请重试"
+                        errorMessage = context.getString(R.string.create_vault_failed)
                     }
                 }
             },
@@ -139,7 +140,7 @@ fun UnlockScreen(
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
             }
-            Text(if (hasDatabase) "解锁" else "创建密码本", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            Text(if (hasDatabase) stringResource(R.string.unlock_button) else stringResource(R.string.create_vault_button), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -186,13 +187,13 @@ private fun BiometricButton(
                         if (dbManager.openDatabase(pwd)) {
                             onUnlocked()
                         } else {
-                            onFailed("解锁失败，请重试或使用密码")
+                            onFailed(context.getString(R.string.unlock_failed_retry))
                         }
                     },
                     onError = { onFailed(it) }
                 )
             } else {
-                onFailed("未设置指纹解锁，请先在设置中启用")
+                onFailed(context.getString(R.string.fingerprint_not_set_hint))
             }
         },
         modifier = Modifier.fillMaxWidth().height(44.dp),
@@ -200,6 +201,6 @@ private fun BiometricButton(
     ) {
         Icon(Icons.Filled.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
-        Text(if (fingerprintSet) "指纹解锁" else "指纹解锁（未设置）")
+        Text(if (fingerprintSet) stringResource(R.string.biometric_unlock) else stringResource(R.string.biometric_unlock_not_set))
     }
 }

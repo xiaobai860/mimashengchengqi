@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.kunzisoft.keepass.database.element.entry.EntryKDBX
@@ -42,7 +43,7 @@ fun HistoryScreen(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text("暂无历史记录，去生成一个密码吧", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -86,17 +87,17 @@ private fun HistoryCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(entry.url, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = entry.username.ifEmpty { "无登录名" },
+                        text = entry.username.ifEmpty { stringResource(R.string.no_login) },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Row {
                     IconButton(onClick = onCopy) {
-                        Icon(Icons.Filled.ContentCopy, contentDescription = "复制")
+                        Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy_desc))
                     }
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Filled.Delete, contentDescription = "删除")
+                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete_desc))
                     }
                 }
             }
@@ -112,7 +113,7 @@ private fun HistoryCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "主密码: ${if (showMp) masterPassword else "•".repeat(masterPassword.length.coerceAtLeast(6))}",
+                        text = stringResource(R.string.master_password_prefix, if (showMp) masterPassword else "•".repeat(masterPassword.length.coerceAtLeast(6))),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
@@ -120,7 +121,7 @@ private fun HistoryCard(
                     IconButton(onClick = { showMp = !showMp }) {
                         Icon(
                             if (showMp) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                            contentDescription = if (showMp) "隐藏主密码" else "显示主密码"
+                            contentDescription = if (showMp) stringResource(R.string.hide_master_password) else stringResource(R.string.show_master_password)
                         )
                     }
                 }
