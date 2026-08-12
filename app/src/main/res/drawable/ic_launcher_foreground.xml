@@ -7,21 +7,20 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:scaleX="0.82"
-        android:scaleY="0.82">
-        <!-- 锁梁：顶部圆弧 -->
+        android:scaleX="0.92"
+        android:scaleY="0.92">
+        <!-- 锁梁：顶部半圆 -->
         <path
             android:fillColor="#FFFFFF"
-            android:fillType="evenOdd"
-            android:pathData="M40,50 a14,14 0 0 1 28,0 v-2 h6 v2 a20,20 0 0 0 -40,0 v-6 h-6 v6 z" />
+            android:pathData="M38,44 a16,16 0 0 1 32,0 v-4 h-6 v4 a10,10 0 0 0 -20,0 v-4 h-6 v4 z" />
         <!-- 锁体：圆角矩形主体 -->
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M32,50 h44 a8,8 0 0 1 8,8 v30 a8,8 0 0 1 -8,8 h-44 a8,8 0 0 1 -8,-8 v-30 a8,8 0 0 1 8,-8 z" />
+            android:pathData="M33,44 h42 a9,9 0 0 1 9,9 v18 a9,9 0 0 1 -9,9 h-42 a9,9 0 0 1 -9,-9 v-18 a9,9 0 0 1 9,-9 z" />
         <!-- 锁体上沿高光带 -->
         <path
             android:fillColor="#E8EEFF"
-            android:pathData="M32,50 h44 a8,8 0 0 1 8,8 v5 h-60 v-5 a8,8 0 0 1 8,-8 z" />
+            android:pathData="M33,44 h42 a9,9 0 0 1 9,9 v5 h-60 v-5 a9,9 0 0 1 9,-9 z" />
         <!-- 钥匙孔：外圈 -->
         <path
             android:fillColor="#3B5BDB"

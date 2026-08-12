@@ -147,8 +147,8 @@ fun MainScreen(
     moveFolderUri: MutableState<Uri?>,
 ) {
     LaunchedEffect(Unit) {
-        // 自动解锁开启时，超时锁定功能禁用（按需求）；否则按设置项启用
-        if (dbManager.timeoutEnabled && !dbManager.autoUnlock) {
+        // 自动解锁开启，或密码本未设置密码时，超时锁定功能禁用；否则按设置项启用
+        if (dbManager.timeoutEnabled && !dbManager.autoUnlock && dbManager.hasPassword) {
             timeoutManager.setTimeout(dbManager.timeoutMinutes * 60 * 1000L)
             timeoutManager.start()
         } else {
@@ -628,6 +628,9 @@ fun SettingsScreen(
     var timeoutEnabled by remember { mutableStateOf(dbManager.timeoutEnabled) }
     var timeoutMinutes by remember { mutableStateOf(dbManager.timeoutMinutes) }
     var autoUnlock by remember { mutableStateOf(dbManager.autoUnlock) }
+    val hasPassword = dbManager.hasPassword
+    // 密码本未设置密码时，超时锁定不可用（锁定后无法解锁）
+    val timeoutUsable = hasPassword && !autoUnlock
     var fpEnabled by remember { mutableStateOf(credentialStore.hasFingerprintPassword(dbManager.vaultId)) }
     var fpSnackbar by remember { mutableStateOf<String?>(null) }
     val timeoutOptions = listOf(1, 5, 15, 30)
@@ -751,21 +754,25 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("超时锁定", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "无操作一段时间后自动锁定${if (autoUnlock) "（自动解锁开启时已禁用）" else ""}",
+                            when {
+                                !hasPassword -> "未设置密码本密码时不可用（锁定后将无法解锁）"
+                                autoUnlock -> "无操作一段时间后自动锁定（自动解锁开启时已禁用）"
+                                else -> "无操作一段时间后自动锁定"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
-                        checked = timeoutEnabled && !autoUnlock,
-                        enabled = !autoUnlock,
+                        checked = timeoutUsable && timeoutEnabled,
+                        enabled = timeoutUsable,
                         onCheckedChange = {
                             timeoutEnabled = it
                             dbManager.setTimeoutEnabled(it)
                         }
                     )
                 }
-                if (timeoutEnabled && !autoUnlock) {
+                if (timeoutUsable && timeoutEnabled) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
