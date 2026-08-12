@@ -6,12 +6,14 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import android.util.Base64
+import java.util.concurrent.Executors
 
 /**
  * 凭据安全存储：把"密码本密码"加密保存在 AndroidKeystore 中。
@@ -110,12 +112,60 @@ class CredentialStore(private val context: Context) {
     }
 
     /**
+     * 设置指纹解锁：必须先弹 BiometricPrompt 让用户完成一次认证，
+     * 认证成功后（已拿到 keystore auth token）才能用受保护的密钥加密保存密码。
+     * 直接在 encrypt 里使用 requireAuth 密钥会触发 KEY_USER_NOT_AUTHENTICATED 崩溃。
+     */
+    fun setupFingerprintPassword(
+        vaultId: String,
+        password: String,
+        activity: FragmentActivity,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        try {
+            val key = getOrCreateKey(fpAlias(vaultId), true)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+            val prompt = BiometricPrompt(activity, Executors.newSingleThreadExecutor(),
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        try {
+                            val iv = cipher.iv
+                            val ct = cipher.doFinal(password.toByteArray(Charsets.UTF_8))
+                            val blob = Base64.encodeToString(iv, Base64.NO_WRAP) + ":" +
+                                Base64.encodeToString(ct, Base64.NO_WRAP)
+                            prefs.edit().putString("fp_${sanitize(vaultId)}", blob).apply()
+                            android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
+                        } catch (e: Exception) {
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                onError("加密失败: ${e.message}")
+                            }
+                        }
+                    }
+                    override fun onAuthenticationFailed() {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { onError("指纹验证失败") }
+                    }
+                    override fun onAuthenticationError(code: Int, err: CharSequence) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { onError(err.toString()) }
+                    }
+                })
+            prompt.authenticate(
+                fingerprintPromptInfo("启用指纹解锁", "验证指纹以保存解锁凭据"),
+                BiometricPrompt.CryptoObject(cipher)
+            )
+        } catch (e: Exception) {
+            onError("指纹设置初始化失败: ${e.message}")
+        }
+    }
+
+    /**
      * 使用指纹密钥解密密码。需要 activity 配合弹出 BiometricPrompt，
      * 认证成功后通过 CryptoObject 完成解密。
      */
     fun decryptFingerprint(
         vaultId: String,
-        activity: androidx.fragment.app.FragmentActivity,
+        activity: FragmentActivity,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit,
     ) {
@@ -129,13 +179,7 @@ class CredentialStore(private val context: Context) {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key.secretKey, GCMParameterSpec(128, iv))
 
-            val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                .setTitle("指纹解锁")
-                .setSubtitle("验证指纹以解锁密码本")
-                .setNegativeButtonText("取消")
-                .build()
-            val prompt = BiometricPrompt(activity,
-                java.util.concurrent.Executors.newSingleThreadExecutor(),
+            val prompt = BiometricPrompt(activity, Executors.newSingleThreadExecutor(),
                 object : BiometricPrompt.AuthenticationCallback() {
                     override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                         try {
@@ -156,11 +200,21 @@ class CredentialStore(private val context: Context) {
                         android.os.Handler(android.os.Looper.getMainLooper()).post { onError(err.toString()) }
                     }
                 })
-            prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
+            prompt.authenticate(
+                fingerprintPromptInfo("指纹解锁", "验证指纹以解锁密码本"),
+                BiometricPrompt.CryptoObject(cipher)
+            )
         } catch (e: Exception) {
             onError("指纹解锁初始化失败: ${e.message}")
         }
     }
+
+    private fun fingerprintPromptInfo(title: String, subtitle: String): BiometricPrompt.PromptInfo =
+        BiometricPrompt.PromptInfo.Builder()
+            .setTitle(title)
+            .setSubtitle(subtitle)
+            .setNegativeButtonText("取消")
+            .build()
 
     companion object {
         fun isBiometricAvailable(context: Context): Boolean {

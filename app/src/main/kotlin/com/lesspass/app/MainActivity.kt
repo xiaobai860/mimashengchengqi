@@ -1,5 +1,6 @@
 package com.lesspass.app
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -13,11 +14,10 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.fragment.app.FragmentActivity
+import androidx.compose.runtime.MutableState
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ShareCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,10 +56,19 @@ import com.lesspass.app.data.PasswordEntry
 import com.lesspass.app.data.DatabaseManager.KdbxFileInfo
 import com.lesspass.app.BuildConfig
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+    // 文件夹选择器的结果通过传统 startActivityForResult + onActivityResult 接收，
+    // 使用固定合法 requestCode，彻底规避 ActivityResultRegistry 累积导致
+    // "Can only use lower 16 bits for requestCode" 崩溃。
+    companion object {
+        const val REQ_MOVE_FOLDER = 1001
+    }
+    private lateinit var moveFolderUri: MutableState<Uri?>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        moveFolderUri = mutableStateOf(null)
         setContent {
             MaterialTheme {
                 Surface(
@@ -98,6 +107,8 @@ class MainActivity : ComponentActivity() {
                     Log.d("MimaDB", "onCreate state: isUnlocked=$isUnlocked hasDatabase=${dbManager.hasDatabase}")
                     val timeoutManager = remember { TimeoutManager(dbManager, onLock = { isUnlocked = false }) }
                     val credentialStore = remember { CredentialStore(context) }
+                    // 文件夹选择 launcher 已在 Activity.onCreate 用 activityResultRegistry
+                    // 注册一次（见类字段 moveFolderLauncher / moveFolderUri），这里直接使用。
 
                     if (!isUnlocked) {
                         UnlockScreen(
@@ -106,16 +117,35 @@ class MainActivity : ComponentActivity() {
                             onUnlocked = { isUnlocked = true }
                         )
                     } else {
-                        MainScreen(dbManager = dbManager, timeoutManager = timeoutManager, credentialStore = credentialStore)
+                        MainScreen(
+                            dbManager = dbManager,
+                            timeoutManager = timeoutManager,
+                            credentialStore = credentialStore,
+                            moveFolderUri = moveFolderUri,
+                        )
                     }
                 }
             }
         }
     }
+
+    // 接收文件夹选择器返回的结果（传统 startActivityForResult，固定合法 requestCode）
+    @Deprecated("Use OnActivityResult instead")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_MOVE_FOLDER && resultCode == Activity.RESULT_OK) {
+            moveFolderUri.value = data?.data
+        }
+    }
 }
 
 @Composable
-fun MainScreen(dbManager: DatabaseManager, timeoutManager: TimeoutManager, credentialStore: CredentialStore) {
+fun MainScreen(
+    dbManager: DatabaseManager,
+    timeoutManager: TimeoutManager,
+    credentialStore: CredentialStore,
+    moveFolderUri: MutableState<Uri?>,
+) {
     LaunchedEffect(Unit) {
         // 自动解锁开启时，超时锁定功能禁用（按需求）；否则按设置项启用
         if (dbManager.timeoutEnabled && !dbManager.autoUnlock) {
@@ -167,7 +197,11 @@ fun MainScreen(dbManager: DatabaseManager, timeoutManager: TimeoutManager, crede
                 0 -> GenerateScreen(dbManager = dbManager)
                 1 -> HistoryScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it, "已复制到剪贴板") })
                 2 -> PasswordBookScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it, "已复制到剪贴板") })
-                3 -> SettingsScreen(dbManager = dbManager, credentialStore = credentialStore)
+                3 -> SettingsScreen(
+                    dbManager = dbManager,
+                    credentialStore = credentialStore,
+                    moveFolderUri = moveFolderUri,
+                )
             }
         }
     }
@@ -582,7 +616,11 @@ fun GenerateScreen(dbManager: DatabaseManager) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun SettingsScreen(dbManager: DatabaseManager, credentialStore: CredentialStore) {
+fun SettingsScreen(
+    dbManager: DatabaseManager,
+    credentialStore: CredentialStore,
+    moveFolderUri: MutableState<Uri?>,
+) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
 
@@ -633,6 +671,15 @@ fun SettingsScreen(dbManager: DatabaseManager, credentialStore: CredentialStore)
         showMigrateConfirmDialog = true
     }
 
+    // 监听 Activity 级文件夹选择器返回的 URI，执行迁移（launcher 已提升到 MainActivity 注册一次）
+    LaunchedEffect(moveFolderUri.value) {
+        val uri = moveFolderUri.value
+        if (uri != null) {
+            moveFolderUri.value = null
+            handleFolderSelected(uri)
+        }
+    }
+
     // 处理迁移操作
     fun performMigration() {
         val uri = pendingFolderUri ?: return
@@ -674,18 +721,8 @@ fun SettingsScreen(dbManager: DatabaseManager, credentialStore: CredentialStore)
         pendingFolderUri = null
     }
 
-    // 选择目标文件夹（使用系统文件夹选择器 OpenDocumentTree）
-    // 通过 StartActivityForResult 手动构造 Intent，并加上 FLAG_GRANT_PERSISTABLE_URI_PERMISSION，
-    // 否则系统不会授予持久 URI 权限，导致迁移/创建后无法读取该目录下的密码本列表。
-    val pickMoveFolderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != android.app.Activity.RESULT_OK) { moveError = null; return@rememberLauncherForActivityResult }
-        val uri = result.data?.data
-        if (uri == null) { moveError = null; return@rememberLauncherForActivityResult }
-        moveError = null
-        handleFolderSelected(uri)
-    }
+    // 选择目标文件夹的 launcher 已提升到 MainActivity 顶层（moveFolderLauncher），
+    // 避免每次进入 SettingsScreen 重复注册 ActivityResultLauncher 导致 requestCode 溢出。
 
     Column(
         modifier = Modifier
@@ -836,13 +873,21 @@ fun SettingsScreen(dbManager: DatabaseManager, credentialStore: CredentialStore)
                         Button(
                             enabled = dbManager.unlocked && dbManager.hasPassword && CredentialStore.isBiometricAvailable(context),
                             onClick = {
-                                if (dbManager.unlocked) {
-                                    credentialStore.storeFingerprintPassword(dbManager.vaultId, dbManager.currentPassword ?: "")
-                                    fpEnabled = true
-                                    fpSnackbar = "已为当前密码本启用指纹解锁"
-                                } else {
+                                val activity = context as? androidx.fragment.app.FragmentActivity
+                                if (activity == null || !dbManager.unlocked) {
                                     fpSnackbar = "请先解锁密码本后再设置指纹"
+                                    return@Button
                                 }
+                                credentialStore.setupFingerprintPassword(
+                                    vaultId = dbManager.vaultId,
+                                    password = dbManager.currentPassword ?: "",
+                                    activity = activity,
+                                    onSuccess = {
+                                        fpEnabled = true
+                                        fpSnackbar = "已为当前密码本启用指纹解锁"
+                                    },
+                                    onError = { fpSnackbar = it }
+                                )
                             }
                         ) {
                             Text("设置指纹")
@@ -1007,17 +1052,13 @@ fun SettingsScreen(dbManager: DatabaseManager, credentialStore: CredentialStore)
             Text(if (dbManager.hasPassword) "修改 KDBX 密码" else "设置 KDBX 密码")
         }
 
-        // 修改文件位置（用文件夹选择器）
+        // 修改文件位置（用文件夹选择器，传统 startActivityForResult，固定合法 requestCode）
         OutlinedButton(
             onClick = {
-                val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                    addFlags(
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                    )
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 }
-                pickMoveFolderLauncher.launch(treeIntent)
+                (context as MainActivity).startActivityForResult(intent, MainActivity.REQ_MOVE_FOLDER)
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)
@@ -1085,6 +1126,8 @@ fun SettingsScreen(dbManager: DatabaseManager, credentialStore: CredentialStore)
     if (showChangePasswordDialog) {
         ChangePasswordDialog(
             dbManager = dbManager,
+            credentialStore = credentialStore,
+            onPasswordChanged = { fpEnabled = false },
             onDismiss = { showChangePasswordDialog = false }
         )
     }
@@ -1454,6 +1497,8 @@ private fun KdbxFilePasswordDialog(
 @Composable
 private fun ChangePasswordDialog(
     dbManager: DatabaseManager,
+    credentialStore: CredentialStore,
+    onPasswordChanged: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1508,7 +1553,19 @@ private fun ChangePasswordDialog(
                         return@TextButton
                     }
                     if (dbManager.changePassword(oldPassword, newPassword)) {
-                        Toast.makeText(context, "密码修改成功", Toast.LENGTH_SHORT).show()
+                        // 密码已变更，旧的指纹凭据对应的密码失效，必须清除并提示重新设置
+                        val fpVault = dbManager.vaultId
+                        if (credentialStore.hasFingerprintPassword(fpVault)) {
+                            credentialStore.clearFingerprintPassword(fpVault)
+                            onPasswordChanged()
+                            Toast.makeText(
+                                context,
+                                "密码修改成功，指纹解锁已失效，请重新设置",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            Toast.makeText(context, "密码修改成功", Toast.LENGTH_SHORT).show()
+                        }
                         onDismiss()
                     } else {
                         errorMessage = "密码修改失败"

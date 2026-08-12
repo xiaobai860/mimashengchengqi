@@ -102,11 +102,7 @@ fun UnlockScreen(
                 executor = executor,
                 databasePassword = databasePassword,
                 onUnlocked = {
-                    if (dbManager.openDatabase(databasePassword)) {
-                        onUnlocked()
-                    } else {
-                        errorMessage = "密码错误，请重试"
-                    }
+                    onUnlocked()
                 },
                 onFailed = { errorMessage = it }
             )
