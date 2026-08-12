@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
@@ -30,6 +31,7 @@ import java.util.Locale
 fun HistoryScreen(
     dbManager: DatabaseManager,
     onCopy: (String) -> Unit,
+    onSave: (EntryKDBX) -> Unit,
 ) {
     val context = LocalContext.current
     var entries by remember { mutableStateOf(emptyList<EntryKDBX>()) }
@@ -50,14 +52,15 @@ fun HistoryScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         items(entries, key = { e -> e.id.toString() }) { entry ->
             HistoryCard(
                 entry = entry,
                 dbManager = dbManager,
                 onCopy = { onCopy(String(entry.password)) },
+                onSave = { onSave(entry) },
                 onDelete = {
                     dbManager.deleteHistoryEntry(entry)
                     dbManager.saveDatabase()
@@ -73,12 +76,14 @@ private fun HistoryCard(
     entry: EntryKDBX,
     dbManager: DatabaseManager,
     onCopy: () -> Unit,
+    onSave: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var showMp by remember { mutableStateOf(false) }
     val masterPassword = dbManager.getMasterPasswordFromEntry(entry)
+    val version = dbManager.getVersionFromEntry(entry)
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -93,6 +98,9 @@ private fun HistoryCard(
                     )
                 }
                 Row {
+                    IconButton(onClick = onSave) {
+                        Icon(Icons.Filled.BookmarkAdd, contentDescription = stringResource(R.string.save_to_vault))
+                    }
                     IconButton(onClick = onCopy) {
                         Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.copy_desc))
                     }
@@ -105,6 +113,12 @@ private fun HistoryCard(
                 text = String(entry.password),
                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.primary
+            )
+            // 版本号（第几个版本 / LessPass 计数器数值）
+            Text(
+                text = stringResource(R.string.version_label, version),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             // 主密码：默认掩码，点击眼睛按钮切换明文
             if (masterPassword.isNotEmpty()) {

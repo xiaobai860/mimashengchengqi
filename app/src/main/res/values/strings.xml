@@ -189,4 +189,19 @@
     <string name="master_password_prefix">Master password: %1$s</string>
     <string name="export_kdbx_dialog">Export KDBX File</string>
     <string name="cancel">Cancel</string>
+    <!-- Vault search / save / conflict / history -->
+    <string name="search_vault_hint">Search by site or username</string>
+    <string name="no_results">No matching entries</string>
+    <string name="save_to_vault">Save to Vault</string>
+    <string name="view_history">View History</string>
+    <string name="version_label">Version: %1$d</string>
+    <string name="history_title">Password History for %1$s</string>
+    <string name="history_empty_site">No history found for this site</string>
+    <string name="conflict_title">Same Generation Condition Found</string>
+    <string name="conflict_diff_password">A password with the same site and username already exists in the vault (different password). Do you want to view the existing password or overwrite it?</string>
+    <string name="conflict_same_password">A password with the same site, username and password already exists in the vault. Please regenerate with counter +1 and save again.</string>
+    <string name="view_existing">View Password</string>
+    <string name="overwrite">Overwrite</string>
+    <string name="regenerate_next">Regenerate (counter +1)</string>
+    <string name="generated_copy">Generated</string>
 </resources>

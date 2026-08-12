@@ -97,6 +97,8 @@ class DatabaseManager(private val context: Context) {
 
     /** 主密码在 kdbx 条目中存储的自定义字段名（第二个"密码"字段，受保护存储） */
     private val MASTER_PASSWORD_FIELD = "主密码"
+    /** 版本号字段：记录该密码是第几个版本（即 LessPass 计数器数值） */
+    private val VERSION_FIELD = "版本"
 
     val unlocked: Boolean get() = isUnlocked
     val autoUnlock: Boolean get() = prefs(context).getBoolean(KEY_AUTO_UNLOCK, false)
@@ -1319,7 +1321,15 @@ class DatabaseManager(private val context: Context) {
         return entries
     }
 
-    fun addPasswordBookEntry(title: String, username: String, password: String, url: String = "", notes: String = "", masterPassword: String = ""): EntryKDBX? {
+    fun addPasswordBookEntry(
+        title: String,
+        username: String,
+        password: String,
+        url: String = "",
+        notes: String = "",
+        masterPassword: String = "",
+        version: Int = 1,
+    ): EntryKDBX? {
         val db = database ?: return null
         val entry = db.createEntry()
         entry.title = title
@@ -1327,13 +1337,70 @@ class DatabaseManager(private val context: Context) {
         entry.password = password.toCharArray()
         entry.url = url
         entry.notes = notes
+        // 主密码存入第二个"密码"字段（受保护），不写入 notes 明文
         if (masterPassword.isNotEmpty()) {
-            // 主密码存入第二个"密码"字段（受保护），不写入 notes 明文
             entry.putField(Field(MASTER_PASSWORD_FIELD, ProtectedString(true, masterPassword)))
         }
+        // 版本号：使用 kdbx 自带自定义字段存储，便于查看历史时识别同一网站的不同版本
+        entry.putField(Field(VERSION_FIELD, ProtectedString(false, version.toString())))
         db.rootGroup?.addChildEntry(entry)
         saveDatabase()
         return entry
+    }
+
+    /** 读取条目的版本号（计数器数值），缺省为 1 */
+    fun getVersionFromEntry(entry: EntryKDBX): Int {
+        return entry.getFieldValue(VERSION_FIELD)?.toString()?.toIntOrNull() ?: 1
+    }
+
+    /** 覆盖保存密码本条目的密码/主密码/版本号。覆盖前会把当前条目克隆进它自己的历史（KDBX 原生机制），版本号+1 */
+    fun overwriteVaultEntry(
+        entry: EntryKDBX,
+        password: String,
+        masterPassword: String = "",
+        version: Int = 1,
+    ) {
+        // 先把"覆盖前"的旧条目推入该条目自身的历史列表（KDBX 原生 history 字段）
+        val oldClone = cloneEntryForHistory(entry)
+        if (oldClone != null) {
+            entry.addEntryToHistory(oldClone)
+        }
+        entry.password = password.toCharArray()
+        if (masterPassword.isNotEmpty()) {
+            entry.putField(Field(MASTER_PASSWORD_FIELD, ProtectedString(true, masterPassword)))
+        }
+        // 覆盖后版本号 +1（若未显式传入更高版本，则在原版本基础上递增）
+        val nextVersion = if (version > 1) version else getVersionFromEntry(entry) + 1
+        entry.putField(Field(VERSION_FIELD, ProtectedString(false, nextVersion.toString())))
+        saveDatabase()
+    }
+
+    /** 深拷贝一条条目，用于在被覆盖前存入其自身历史（KDBX 原生 history 字段） */
+    private fun cloneEntryForHistory(entry: EntryKDBX): EntryKDBX? {
+        val db = database ?: return null
+        val clone = db.createEntry() ?: return null
+        clone.updateWith(entry, copyHistory = false, updateParents = false)
+        return clone
+    }
+
+    /** 在密码本（根分组，排除历史记录组）中查找相同网站(url)和用户名(username)的条目（用于冲突检测） */
+    fun findVaultEntry(site: String, username: String): EntryKDBX? {
+        val db = database ?: return null
+        val root = db.rootGroup ?: return null
+        val historyGroup = getHistoryGroup(db)
+        val entries = mutableListOf<EntryKDBX>()
+        collectEntriesExcluding(root, entries, historyGroup)
+        return entries.firstOrNull { it.url == site && it.username == username }
+    }
+
+    /**
+     * 查看某条密码本条目自身的历史版本（仅该条目被覆盖产生的历史，不会跨条目聚合相同网站/用户名）。
+     * 每条历史都带有当时的密码与版本号字段。
+     */
+    fun getEntryHistory(entry: EntryKDBX): List<EntryKDBX> {
+        return entry.history
+            .filterIsInstance<EntryKDBX>()
+            .sortedBy { getVersionFromEntry(it) }
     }
 
     // ==================== 历史记录操作 ====================

@@ -189,4 +189,19 @@
     <string name="master_password_prefix">主密码: %1$s</string>
     <string name="export_kdbx_dialog">导出 KDBX 文件</string>
     <string name="cancel">取消</string>
+    <!-- Vault search / save / conflict / history -->
+    <string name="search_vault_hint">按网站或用户名搜索</string>
+    <string name="no_results">没有匹配的条目</string>
+    <string name="save_to_vault">保存到密码本</string>
+    <string name="view_history">查看历史</string>
+    <string name="version_label">版本：%1$d</string>
+    <string name="history_title">%1$s 的密码历史</string>
+    <string name="history_empty_site">该网站暂无历史密码</string>
+    <string name="conflict_title">发现相同生成条件</string>
+    <string name="conflict_diff_password">密码本中已存在相同网站和用户名的密码（密码不同）。是否查看已有密码，还是覆盖保存？</string>
+    <string name="conflict_same_password">密码本中已存在完全相同的密码（同一网站、用户名和口令）。请重新生成计数器+1版本的密码后再保存。</string>
+    <string name="view_existing">查看密码</string>
+    <string name="overwrite">覆盖保存</string>
+    <string name="regenerate_next">重新生成（计数器 +1）</string>
+    <string name="generated_copy">已生成</string>
 </resources>

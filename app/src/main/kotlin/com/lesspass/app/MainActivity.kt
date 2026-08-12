@@ -55,6 +55,9 @@ import com.lesspass.app.data.TimeoutManager
 import com.lesspass.app.data.PasswordEntry
 import com.lesspass.app.data.DatabaseManager.KdbxFileInfo
 import com.lesspass.app.BuildConfig
+import com.kunzisoft.keepass.database.element.entry.EntryKDBX
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 
 class MainActivity : FragmentActivity() {
     // 文件夹选择器的结果通过传统 startActivityForResult + onActivityResult 接收，
@@ -162,6 +165,43 @@ fun MainScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
 
+    // 保存至密码本时的冲突 / 历史查看 对话框状态
+    var conflictState by remember { mutableStateOf<ConflictState?>(null) }
+    var historyEntry by remember { mutableStateOf<EntryKDBX?>(null) }
+    val regenerateState = remember { mutableStateOf<RegenerateRequest?>(null) }
+
+    fun saveToVault(
+        site: String,
+        username: String,
+        password: String,
+        masterPassword: String,
+        version: Int,
+    ) {
+        val existing = dbManager.findVaultEntry(site, username)
+        if (existing == null) {
+            dbManager.addPasswordBookEntry(
+                title = site,
+                username = username,
+                password = password,
+                url = site,
+                masterPassword = masterPassword,
+                version = version
+            )
+            dbManager.saveDatabase()
+            Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
+        } else {
+            conflictState = ConflictState(
+                site = site,
+                username = username,
+                password = password,
+                masterPassword = masterPassword,
+                version = version,
+                existing = existing,
+                samePassword = String(existing.password) == password
+            )
+        }
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -194,9 +234,32 @@ fun MainScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             when (selectedTab) {
-                0 -> GenerateScreen(dbManager = dbManager)
-                1 -> HistoryScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it) })
-                2 -> PasswordBookScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it) })
+                0 -> GenerateScreen(
+                    dbManager = dbManager,
+                    onSave = { s, u, p, mp, v -> saveToVault(s, u, p, mp, v) },
+                    pendingRegenerate = regenerateState
+                )
+                // 注意：onSave 为函数类型，使用位置参数 { s, u, p, mp, v -> ... }
+                // 上方写法 { s, u, p, mp, v -> } 已正确，请勿改为命名参数
+                1 -> HistoryScreen(
+                    dbManager = dbManager,
+                    onCopy = { copyToClipboard(context, it) },
+                    onSave = { entry ->
+                        // 从历史记录保存到密码本：保存后该记录仍保留在历史中
+                        saveToVault(
+                            site = entry.url,
+                            username = entry.username,
+                            password = String(entry.password),
+                            masterPassword = dbManager.getMasterPasswordFromEntry(entry),
+                            version = dbManager.getVersionFromEntry(entry)
+                        )
+                    }
+                )
+                2 -> PasswordBookScreen(
+                    dbManager = dbManager,
+                    onCopy = { copyToClipboard(context, it) },
+                    onViewHistory = { historyEntry = it }
+                )
                 3 -> SettingsScreen(
                     dbManager = dbManager,
                     credentialStore = credentialStore,
@@ -204,6 +267,44 @@ fun MainScreen(
                 )
             }
         }
+    }
+
+    // 冲突提示对话框
+    conflictState?.let { cs ->
+        ConflictDialog(
+            state = cs,
+            onViewExisting = {
+                copyToClipboard(context, String(cs.existing.password))
+                conflictState = null
+            },
+            onOverwrite = {
+                dbManager.overwriteVaultEntry(
+                    entry = cs.existing,
+                    password = cs.password,
+                    masterPassword = cs.masterPassword,
+                    version = cs.version
+                )
+                conflictState = null
+                Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
+            },
+            onRegenerate = {
+                // 计数器+1，切到生成页，保留网站/用户名输入不清除
+                regenerateState.value = RegenerateRequest(cs.site, cs.username, cs.version + 1)
+                selectedTab = 0
+                conflictState = null
+            },
+            onDismiss = { conflictState = null }
+        )
+    }
+
+    // 查看密码本条目的自身历史版本
+    historyEntry?.let { entry ->
+        EntryHistoryDialog(
+            dbManager = dbManager,
+            entry = entry,
+            onCopy = { copyToClipboard(context, it) },
+            onDismiss = { historyEntry = null }
+        )
     }
 }
 
@@ -213,7 +314,6 @@ fun MainScreen(
 object GenerateSettings {
     private const val PREF_NAME = "generate_prefs"
     private const val KEY_MASTER_PASSWORD = "gen_master_password"
-    private const val KEY_COUNTER = "gen_counter"
     private const val KEY_LENGTH = "gen_length"
     private const val KEY_LOWERCASE = "gen_lowercase"
     private const val KEY_UPPERCASE = "gen_uppercase"
@@ -228,7 +328,7 @@ object GenerateSettings {
         val p = prefs(context)
         return GenerateScreenState(
             masterPassword = p.getString(KEY_MASTER_PASSWORD, "") ?: "",
-            counter = p.getInt(KEY_COUNTER, 1),
+            counter = 1,
             length = p.getInt(KEY_LENGTH, 16),
             lowercase = p.getBoolean(KEY_LOWERCASE, true),
             uppercase = p.getBoolean(KEY_UPPERCASE, true),
@@ -241,7 +341,6 @@ object GenerateSettings {
     fun save(context: Context, state: GenerateScreenState) {
         prefs(context).edit().apply {
             putString(KEY_MASTER_PASSWORD, state.masterPassword)
-            putInt(KEY_COUNTER, state.counter)
             putInt(KEY_LENGTH, state.length)
             putBoolean(KEY_LOWERCASE, state.lowercase)
             putBoolean(KEY_UPPERCASE, state.uppercase)
@@ -305,7 +404,11 @@ private fun strengthLabelRes(level: Int): Int = when (level) {
 }
 
 @Composable
-fun GenerateScreen(dbManager: DatabaseManager) {
+fun GenerateScreen(
+    dbManager: DatabaseManager,
+    onSave: (site: String, username: String, password: String, masterPassword: String, version: Int) -> Unit,
+    pendingRegenerate: MutableState<RegenerateRequest?>,
+) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -318,7 +421,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
     var site by remember { mutableStateOf("") }
     var login by remember { mutableStateOf("") }
     var masterPassword by remember { mutableStateOf(defaultMasterPassword) }
-    var counter by remember { mutableIntStateOf(savedSettings.counter) }
+    var counter by remember { mutableIntStateOf(1) }
     var length by remember { mutableIntStateOf(savedSettings.length) }
     var lowercase by remember { mutableStateOf(savedSettings.lowercase) }
     var uppercase by remember { mutableStateOf(savedSettings.uppercase) }
@@ -337,6 +440,18 @@ fun GenerateScreen(dbManager: DatabaseManager) {
             fingerprint = LessPassEngine.buildFingerprint(masterPassword)
         } else {
             fingerprint = emptyList()
+        }
+    }
+
+    // 冲突后"重新生成"信号：保留网站/用户名，计数器+1，不清除输入
+    LaunchedEffect(pendingRegenerate.value) {
+        pendingRegenerate.value?.let { req ->
+            site = req.site
+            login = req.username
+            counter = req.counter
+            password = null
+            fingerprint = emptyList()
+            pendingRegenerate.value = null
         }
     }
 
@@ -566,16 +681,7 @@ fun GenerateScreen(dbManager: DatabaseManager) {
                     modifier = Modifier.weight(1f)
                 ) {
                     if (dbManager.unlocked) {
-                        dbManager.addPasswordBookEntry(
-                            title = site,
-                            username = login,
-                            password = password!!,
-                            url = site,
-                            notes = "count=$counter, length=$length, exclude=$excludeAmbiguous",
-                            masterPassword = masterPassword
-                        )
-                        dbManager.saveDatabase()
-                        Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
+                        onSave(site, login, password!!, masterPassword, counter)
                     } else {
                         Toast.makeText(context, context.getString(R.string.unlock_vault_first), Toast.LENGTH_SHORT).show()
                     }
@@ -1733,4 +1839,128 @@ private fun copyToClipboard(context: Context, text: String, message: String? = n
     val clip = ClipData.newPlainText(context.getString(R.string.clipboard_label), text)
     clipboard.setPrimaryClip(clip)
     Toast.makeText(context, message ?: context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
+}
+
+private fun formatTime(timestamp: Long): String {
+    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
+}
+
+/** 冲突状态：保存至密码本时，发现已存在相同网站+用户名的条目 */
+private data class ConflictState(
+    val site: String,
+    val username: String,
+    val password: String,
+    val masterPassword: String,
+    val version: Int,
+    val existing: EntryKDBX,
+    val samePassword: Boolean,
+)
+
+/** 生成页"重新生成"请求：保留网站/用户名，计数器 +1 */
+data class RegenerateRequest(
+    val site: String,
+    val username: String,
+    val counter: Int,
+)
+
+@Composable
+private fun ConflictDialog(
+    state: ConflictState,
+    onViewExisting: () -> Unit,
+    onOverwrite: () -> Unit,
+    onRegenerate: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.conflict_title)) },
+        text = {
+            Text(
+                if (state.samePassword) stringResource(R.string.conflict_same_password)
+                else stringResource(R.string.conflict_diff_password)
+            )
+        },
+        confirmButton = {
+            if (state.samePassword) {
+                // 密码也相同：提示重新生成计数器+1 版本
+                TextButton(onClick = onRegenerate) { Text(stringResource(R.string.regenerate_next)) }
+            } else {
+                // 密码不同：查看现有密码 / 覆盖保存
+                TextButton(onClick = onViewExisting) { Text(stringResource(R.string.view_existing)) }
+                TextButton(onClick = onOverwrite) { Text(stringResource(R.string.overwrite)) }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun EntryHistoryDialog(
+    dbManager: DatabaseManager,
+    entry: EntryKDBX,
+    onCopy: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val history = remember(entry) { dbManager.getEntryHistory(entry) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.history_title, entry.title.ifEmpty { entry.url })) },
+        text = {
+            if (history.isEmpty()) {
+                Text(
+                    stringResource(R.string.history_empty_site),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(history, key = { it.id.toString() }) { h ->
+                        val version = dbManager.getVersionFromEntry(h)
+                        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        stringResource(R.string.version_label, version),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    IconButton(
+                                        onClick = { onCopy(String(h.password)) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.ContentCopy,
+                                            contentDescription = stringResource(R.string.copy_desc),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    String(h.password),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    formatTime(h.creationTime.toMilliseconds()),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.ok)) }
+        }
+    )
 }
