@@ -98,16 +98,16 @@ class MainActivity : FragmentActivity() {
 
                     LaunchedEffect(Unit) {
                         if (!dbManager.unlocked) {
-                            // 仅当用户开启过“自动解锁”时才自动打开密码本；
-                            // 清除数据会移除 auto_unlock 标记，从而停在解锁/选择界面，
-                            // 由用户在「打开已有密码本」列表中手动选中并输入密码，不会直接进应用。
-                            if (dbManager.autoUnlock) {
+                            // 无密码密码本：进入即自动解锁，无需用户点击（也不依赖 autoUnlock 开关）。
+                            if (!dbManager.hasPassword) {
+                                dbManager.openDatabase("")
+                            } else if (dbManager.autoUnlock) {
+                                // 有密码且开启过“自动解锁”：用保存的密码自动打开；
+                                // 清除数据会移除 auto_unlock 标记，从而停在解锁界面手动输入。
                                 val cred = CredentialStore(context)
                                 val savedPwd = cred.getAutoPassword(dbManager.vaultId)
                                 if (savedPwd != null) {
                                     dbManager.openDatabase(savedPwd)
-                                } else {
-                                    dbManager.openDatabase("")
                                 }
                             }
                         }

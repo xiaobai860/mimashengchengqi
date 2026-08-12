@@ -18,6 +18,7 @@ import com.kunzisoft.keepass.database.element.group.GroupKDBX
 import com.kunzisoft.keepass.database.element.security.ProtectedString
 import com.kunzisoft.keepass.database.file.input.DatabaseInputKDBX
 import com.kunzisoft.keepass.database.file.output.DatabaseOutputKDBX
+import com.kunzisoft.keepass.database.file.DatabaseHeaderKDBX
 import com.kunzisoft.keepass.utils.UnsignedInt
 import java.io.File
 import java.io.FileInputStream
@@ -256,8 +257,10 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
-                        val mc = MasterCredential(password!!.toCharArray())
+                        // 空密码必须传 null 而非空字符串 ""，否则 composite key 与
+                        // KeePassDX 无密码库（SHA256("")）不一致，无法互相打开。
+                        val mc = if (password.isNullOrEmpty()) MasterCredential(null)
+                                 else MasterCredential(password.toCharArray())
                         db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
@@ -312,7 +315,7 @@ class DatabaseManager(private val context: Context) {
                 Log.d("MimaDB", "createDatabase: existing default db renamed=$renamed to avoid overwrite")
             }
             val db = DatabaseKDBX("密码本", "根目录")
-            db.kdbxVersion = UnsignedInt(0x40) // KDBX 4.0
+            db.kdbxVersion = DatabaseHeaderKDBX.FILE_VERSION_31 // KDBX 3.1，与 KeePassDX 默认格式一致，保证第三方工具可读取
             // 使用 AES-KDF（KeePass 官方默认、兼容性最好），确保 KeepassDX / Keepass2Android 等第三方工具可读取
             db.kdfEngine = KdfFactory.aesKdf
             db.randomizeKdfParameters()
@@ -323,10 +326,12 @@ class DatabaseManager(private val context: Context) {
             ensureHistoryGroupExists(db)
 
             // 先保存到临时变量，只有成功后才提交状态变更
-            // 注意：即使是空密码，KDBX 4 也必须派生主密钥（用空字符串），
-            // 否则文件头缺少有效加密信息，KeepassDX 等第三方工具无法读取。
+            // 注意：即使无密码也必须派生主密钥（否则文件头缺少有效加密信息，
+            // 第三方工具无法读取）。但空密码必须传 null 而非空字符串 ""，
+            // 否则 composite key 会变成 SHA256(SHA256(""))，与 KeePassDX 创建的无密码库
+            // （composite = SHA256("")）不一致，导致 KeePassDX 无法打开。
             val hasPw = password.isNotEmpty()
-            val mc = MasterCredential(password.toCharArray())
+            val mc = if (hasPw) MasterCredential(password.toCharArray()) else MasterCredential(null)
             db.deriveMasterKey(mc, HardwareKeyNoOp)
             database = db
             val saved = saveDatabase()
@@ -383,8 +388,10 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
-                        val mc = MasterCredential(password!!.toCharArray())
+                        // 空密码必须传 null 而非空字符串 ""，否则 composite key 与
+                        // KeePassDX 无密码库（SHA256("")）不一致，无法互相打开。
+                        val mc = if (password.isNullOrEmpty()) MasterCredential(null)
+                                 else MasterCredential(password.toCharArray())
                         db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
@@ -440,9 +447,10 @@ class DatabaseManager(private val context: Context) {
                 return false
             }
 
-            // 用新密码重新派生主密钥。空密码也需派生（用空字符串），
-            // 不可用全零密钥，否则第三方工具（KeepassDX）无法读取。
-            val mc = MasterCredential(newPassword.toCharArray())
+            // 用新密码重新派生主密钥。空密码必须传 null 而非空字符串 ""，
+            // 否则 composite key 与 KeePassDX 无密码库（SHA256("")）不一致。
+            val mc = if (newPassword.isEmpty()) MasterCredential(null)
+                     else MasterCredential(newPassword.toCharArray())
             db.deriveMasterKey(mc, HardwareKeyNoOp)
             savedMasterPassword = newPassword
             setHasPassword(newPassword.isNotEmpty())
@@ -855,12 +863,13 @@ class DatabaseManager(private val context: Context) {
             
             // 创建新数据库
             val db = DatabaseKDBX("密码本", "根目录")
-            db.kdbxVersion = UnsignedInt(0x40) // KDBX 4.0
+            db.kdbxVersion = DatabaseHeaderKDBX.FILE_VERSION_31 // KDBX 3.1，与 KeePassDX 默认格式一致，保证第三方工具可读取
             db.kdfEngine = KdfFactory.aesKdf
             db.randomizeKdfParameters()
             
-            // 空密码也需派生（用空字符串），否则 KDBX 头无效，第三方工具无法读取
-            val mc = MasterCredential(password.toCharArray())
+            // 空密码也需派生主密钥，但必须传 null 而非空字符串 ""，
+            // 否则 composite key 与 KeePassDX 无密码库不一致，KeePassDX 无法打开。
+            val mc = if (password.isNotEmpty()) MasterCredential(password.toCharArray()) else MasterCredential(null)
             db.deriveMasterKey(mc, HardwareKeyNoOp)
             setHasPassword(password.isNotEmpty())
             
@@ -982,8 +991,10 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
-                        val mc = MasterCredential(password!!.toCharArray())
+                        // 空密码必须传 null 而非空字符串 ""，否则 composite key 与
+                        // KeePassDX 无密码库（SHA256("")）不一致，无法互相打开。
+                        val mc = if (password.isNullOrEmpty()) MasterCredential(null)
+                                 else MasterCredential(password.toCharArray())
                         db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
@@ -1024,8 +1035,10 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
-                        val mc = MasterCredential(password!!.toCharArray())
+                        // 空密码必须传 null 而非空字符串 ""，否则 composite key 与
+                        // KeePassDX 无密码库（SHA256("")）不一致，无法互相打开。
+                        val mc = if (password.isNullOrEmpty()) MasterCredential(null)
+                                 else MasterCredential(password.toCharArray())
                         db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
