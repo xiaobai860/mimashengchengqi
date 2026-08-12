@@ -1,9 +1,0 @@
-chore: 屏蔽 .codebuddy 目录，清理调试垃圾文件
-
-- .gitignore 增加 .codebuddy/ 及调试脚本/临时文件(_*.xml/_*.py/_current.apk/current_apk/ui.xml)屏蔽规则
-- 从跟踪移除已误提交的 .codebuddy/memory/2026-08-12.md（本地保留）
-- 物理删除根目录调试垃圾文件
-
-clearAllData 逻辑修正：清除数据不再删除/重命名外部存储密码本；
-仅应用私有目录场景在清除前重命名本地 .kdbx 防新建覆盖，
-两种场景均清空标记使重建后进入创建密码本界面而非解锁界面。
