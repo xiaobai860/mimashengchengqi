@@ -18,3 +18,30 @@ build/
 *.iml
 .idea/
 local.properties
+
+# CodeBuddy working memory (local only, do not commit)
+.codebuddy/
+
+# Debug / scratch files
+_current.apk
+current_apk/
+ui.xml
+_after.xml
+_c.xml
+_chk.py
+_dlg.xml
+_dlg2.xml
+_dlgbtn.py
+_dlgctx.py
+_dlgctx2.py
+_dlgfind.py
+_find.py
+_h.xml
+_m.xml
+_post.xml
+_post2.xml
+_post2text.py
+_post3.xml
+_s.xml
+_ui3.xml
+_ui_text.py

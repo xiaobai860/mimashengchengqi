@@ -16,6 +16,10 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -34,6 +38,7 @@ fun HistoryScreen(
     onSave: (EntryKDBX) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var entries by remember { mutableStateOf(emptyList<EntryKDBX>()) }
 
     LaunchedEffect(dbManager.unlocked) {
@@ -62,9 +67,13 @@ fun HistoryScreen(
                 onCopy = { onCopy(String(entry.password)) },
                 onSave = { onSave(entry) },
                 onDelete = {
-                    dbManager.deleteHistoryEntry(entry)
-                    dbManager.saveDatabase()
-                    entries = dbManager.getHistoryEntries()
+                    scope.launch(Dispatchers.IO) {
+                        dbManager.deleteHistoryEntry(entry)
+                        dbManager.saveDatabase()
+                        withContext(Dispatchers.Main) {
+                            entries = dbManager.getHistoryEntries()
+                        }
+                    }
                 }
             )
         }

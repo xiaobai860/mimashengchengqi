@@ -16,6 +16,10 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -35,6 +39,7 @@ fun UnlockScreen(
     onUnlocked: () -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var databasePassword by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -116,19 +121,22 @@ fun UnlockScreen(
                 isLoading = true
                 errorMessage = null
 
-                if (hasDatabase) {
-                    if (dbManager.openDatabase(databasePassword)) {
-                        onUnlocked()
+                scope.launch(Dispatchers.IO) {
+                    val success: Boolean
+                    if (hasDatabase) {
+                        success = dbManager.openDatabase(databasePassword)
                     } else {
-                        isLoading = false
-                        errorMessage = context.getString(R.string.wrong_password)
+                        success = dbManager.createDatabase(databasePassword)
                     }
-                } else {
-                    if (dbManager.createDatabase(databasePassword)) {
-                        onUnlocked()
-                    } else {
-                        isLoading = false
-                        errorMessage = context.getString(R.string.create_vault_failed)
+                    withContext(Dispatchers.Main) {
+                        if (success) {
+                            onUnlocked()
+                        } else {
+                            isLoading = false
+                            errorMessage = context.getString(
+                                if (hasDatabase) R.string.wrong_password else R.string.create_vault_failed
+                            )
+                        }
                     }
                 }
             },
@@ -162,6 +170,7 @@ private fun BiometricButton(
     onUnlocked: () -> Unit,
     onFailed: (String) -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
     val biometricManager = BiometricManager.from(context)
     val canAuthenticate = biometricManager.canAuthenticate(
         BiometricManager.Authenticators.BIOMETRIC_STRONG or
@@ -184,10 +193,15 @@ private fun BiometricButton(
                     vaultId = vaultId,
                     activity = activity,
                     onSuccess = { pwd ->
-                        if (dbManager.openDatabase(pwd)) {
-                            onUnlocked()
-                        } else {
-                            onFailed(context.getString(R.string.unlock_failed_retry))
+                        scope.launch(Dispatchers.IO) {
+                            val ok = dbManager.openDatabase(pwd)
+                            withContext(Dispatchers.Main) {
+                                if (ok) {
+                                    onUnlocked()
+                                } else {
+                                    onFailed(context.getString(R.string.unlock_failed_retry))
+                                }
+                            }
                         }
                     },
                     onError = { onFailed(it) }

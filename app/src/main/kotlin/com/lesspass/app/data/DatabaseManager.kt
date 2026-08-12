@@ -23,6 +23,8 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 密码本数据库管理器 — 基于 KeePassDX 的 KDBX 引擎。
@@ -254,10 +256,9 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        if (password.isNotEmpty()) {
-                            val mc = MasterCredential(password.toCharArray())
-                            db.deriveMasterKey(mc, HardwareKeyNoOp)
-                        }
+                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
+                        val mc = MasterCredential(password!!.toCharArray())
+                        db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
             }
@@ -300,9 +301,10 @@ class DatabaseManager(private val context: Context) {
 
     /**
      * 创建新数据库。password 为空时不加密。
+     * 注意：KDF 派生 + 文件 IO 较重，调用方必须在后台线程（Dispatchers.IO）调用，否则会 ANR 闪退。
      */
-    fun createDatabase(password: String): Boolean {
-        return try {
+    suspend fun createDatabase(password: String): Boolean = withContext(Dispatchers.IO) {
+        try {
             // 若默认密码本文件已存在（如清除数据后旧文件被保留），先将其重命名为唯一名称，
             // 避免新建时直接覆盖用户之前的密码本数据。
             if (dbFile.exists()) {
@@ -311,16 +313,21 @@ class DatabaseManager(private val context: Context) {
             }
             val db = DatabaseKDBX("密码本", "根目录")
             db.kdbxVersion = UnsignedInt(0x40) // KDBX 4.0
-            db.kdfEngine = KdfFactory.argon2idKdf
+            // 使用 AES-KDF（KeePass 官方默认、兼容性最好），确保 KeepassDX / Keepass2Android 等第三方工具可读取
+            db.kdfEngine = KdfFactory.aesKdf
             db.randomizeKdfParameters()
+            // 降低派生轮数（库默认 50 万过高，后台线程仍可用；20 万在安全性与速度间取得平衡）
+            db.kdfParameters?.let { params ->
+                KdfFactory.aesKdf.setKeyRounds(params, 200000L)
+            }
             ensureHistoryGroupExists(db)
 
             // 先保存到临时变量，只有成功后才提交状态变更
+            // 注意：即使是空密码，KDBX 4 也必须派生主密钥（用空字符串），
+            // 否则文件头缺少有效加密信息，KeepassDX 等第三方工具无法读取。
             val hasPw = password.isNotEmpty()
-            if (hasPw) {
-                val mc = MasterCredential(password.toCharArray())
-                db.deriveMasterKey(mc, HardwareKeyNoOp)
-            }
+            val mc = MasterCredential(password.toCharArray())
+            db.deriveMasterKey(mc, HardwareKeyNoOp)
             database = db
             val saved = saveDatabase()
             if (saved) {
@@ -348,24 +355,24 @@ class DatabaseManager(private val context: Context) {
      * 用密码打开数据库。优先尝试外部 URI → 内置 URI → 本地文件路径。
      * password 为空时直接打开（无加密）。
      */
-    fun openDatabase(password: String): Boolean {
-        return try {
+    suspend fun openDatabase(password: String): Boolean = withContext(Dispatchers.IO) {
+        try {
             // 1. 优先尝试外部 URI（用户通过文件管理选择的 .kdbx）
             val externalUri = dbExternalUri
             if (externalUri != null) {
                 Log.d("MimaDB", "openDatabase: trying external URI=$externalUri")
-                if (openDatabaseByUri(externalUri, password)) return true
+                if (openDatabaseByUri(externalUri, password)) return@withContext true
             }
             // 2. 尝试内置 URI（修改保存位置后）
             val uri = dbUri
             if (uri != null) {
                 Log.d("MimaDB", "openDatabase: trying URI=$uri")
-                if (openDatabaseByUri(uri, password)) return true
+                if (openDatabaseByUri(uri, password)) return@withContext true
             }
             // 3. 回退到本地文件路径
             if (!dbFile.exists()) {
                 Log.d("MimaDB", "openDatabase: dbFile does not exist at ${dbFile.absolutePath}")
-                return false
+                return@withContext false
             }
             Log.d("MimaDB", "openDatabase: dbFile size=${dbFile.length()} at ${dbFile.absolutePath}")
 
@@ -376,10 +383,9 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        if (password.isNotEmpty()) {
-                            val mc = MasterCredential(password.toCharArray())
-                            db.deriveMasterKey(mc, HardwareKeyNoOp)
-                        }
+                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
+                        val mc = MasterCredential(password!!.toCharArray())
+                        db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
             }
@@ -415,7 +421,7 @@ class DatabaseManager(private val context: Context) {
      * 空 newPassword 表示移除加密（masterKey 设为全零，与 openDatabase 空密码行为一致）。
      * oldPassword 可选：如果提供了且与当前密码不一致，先验证旧密码。
      */
-    fun changePassword(oldPassword: String, newPassword: String): Boolean {
+    suspend fun changePassword(oldPassword: String, newPassword: String): Boolean {
         return try {
             // 如果 database 为 null，尝试自动解锁
             if (database == null) {
@@ -434,13 +440,10 @@ class DatabaseManager(private val context: Context) {
                 return false
             }
 
-            // 用新密码重新派生主密钥
-            if (newPassword.isNotEmpty()) {
-                val mc = MasterCredential(newPassword.toCharArray())
-                db.deriveMasterKey(mc, HardwareKeyNoOp)
-            } else {
-                db.masterKey = ByteArray(32)
-            }
+            // 用新密码重新派生主密钥。空密码也需派生（用空字符串），
+            // 不可用全零密钥，否则第三方工具（KeepassDX）无法读取。
+            val mc = MasterCredential(newPassword.toCharArray())
+            db.deriveMasterKey(mc, HardwareKeyNoOp)
             savedMasterPassword = newPassword
             setHasPassword(newPassword.isNotEmpty())
 
@@ -455,11 +458,11 @@ class DatabaseManager(private val context: Context) {
     private fun passwordNullOrBlank(pw: String?): Boolean = pw.isNullOrBlank()
 
     /**
-     * 保存数据库到文件
+     * 保存数据库到文件。必须在后台线程调用（含 KDF 重加密与文件 IO）。
      */
-    fun saveDatabase(): Boolean {
-        return try {
-            val db = database ?: return false
+    suspend fun saveDatabase(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val db = database ?: return@withContext false
             val rootEntries = db.rootGroup?.let { root ->
                 val all = mutableListOf<EntryKDBX>()
                 collectEntries(root, all)
@@ -474,7 +477,7 @@ class DatabaseManager(private val context: Context) {
                     output.writeDatabase(out) { }
                 } ?: run {
                     Log.e("MimaDB", "saveDatabase: openOutputStream for URI failed")
-                    return false
+                    return@withContext false
                 }
             } else {
                 FileOutputStream(dbFile).use { stream ->
@@ -500,9 +503,9 @@ class DatabaseManager(private val context: Context) {
     /**
      * 将数据库写入指定输出流（用于内存生成文件后分享/保存）
      */
-    fun exportToOutputStream(out: java.io.OutputStream): Boolean {
-        return try {
-            val db = database ?: return false
+    suspend fun exportToOutputStream(out: java.io.OutputStream): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val db = database ?: return@withContext false
             val output = DatabaseOutputKDBX(db)
             output.writeDatabase(out) { }
             true
@@ -534,7 +537,7 @@ class DatabaseManager(private val context: Context) {
     /**
      * 修改 KDBX 文件保存位置
      */
-    fun moveDatabase(newPath: String): Boolean {
+    suspend fun moveDatabase(newPath: String): Boolean {
         return try {
             val targetFile = File(newPath)
             targetFile.parentFile?.mkdirs()
@@ -853,16 +856,13 @@ class DatabaseManager(private val context: Context) {
             // 创建新数据库
             val db = DatabaseKDBX("密码本", "根目录")
             db.kdbxVersion = UnsignedInt(0x40) // KDBX 4.0
-            db.kdfEngine = KdfFactory.argon2idKdf
+            db.kdfEngine = KdfFactory.aesKdf
             db.randomizeKdfParameters()
             
-            if (password.isNotEmpty()) {
-                val mc = MasterCredential(password.toCharArray())
-                db.deriveMasterKey(mc, HardwareKeyNoOp)
-                setHasPassword(true)
-            } else {
-                setHasPassword(false)
-            }
+            // 空密码也需派生（用空字符串），否则 KDBX 头无效，第三方工具无法读取
+            val mc = MasterCredential(password.toCharArray())
+            db.deriveMasterKey(mc, HardwareKeyNoOp)
+            setHasPassword(password.isNotEmpty())
             
             ensureHistoryGroupExists(db)
             
@@ -922,7 +922,7 @@ class DatabaseManager(private val context: Context) {
     }
 
     /** 用文件夹 URI 迁移数据库（保留向后兼容） */
-    fun moveDatabaseByUri(folderUri: Uri): Boolean {
+    suspend fun moveDatabaseByUri(folderUri: Uri): Boolean {
         return try {
             // 先保存当前数据库
             if (database != null) {
@@ -982,10 +982,9 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        if (!password.isNullOrBlank()) {
-                            val mc = MasterCredential(password!!.toCharArray())
-                            db.deriveMasterKey(mc, HardwareKeyNoOp)
-                        }
+                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
+                        val mc = MasterCredential(password!!.toCharArray())
+                        db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
             } ?: return false
@@ -1025,10 +1024,9 @@ class DatabaseManager(private val context: Context) {
                     stream,
                     null,
                     assignMasterKey = {
-                        if (!password.isNullOrBlank()) {
-                            val mc = MasterCredential(password.toCharArray())
-                            db.deriveMasterKey(mc, HardwareKeyNoOp)
-                        }
+                        // 空密码也需派生（用空字符串），否则 KDBX 头无效
+                        val mc = MasterCredential(password!!.toCharArray())
+                        db.deriveMasterKey(mc, HardwareKeyNoOp)
                     }
                 )
             } ?: return false
@@ -1288,22 +1286,41 @@ class DatabaseManager(private val context: Context) {
         prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
     }
 
-    /** 清除所有应用数据（共享偏好、缓存），保留密码本 kdbx 文件 */
+    /**
+     * 清除应用配置数据（自动解锁标记、密码生成设置、缓存等）。
+     *
+     * 行为说明：
+     *  - 若为**应用私有目录**（默认本地密码本，即未在「修改文件位置」中选外部存储）：
+     *    在清空配置前，先把该 .kdbx 文件重命名为 `原名(1).kdbx`（若已存在则 `(2)` …），
+     *    防止重建后进入「创建密码本」界面新建时覆盖掉用户之前的密码本文件。
+     *  - 若为**外部存储**（SAF 选取的文件夹/文件 URI）：
+     *    不删除、不重命名该外部文件，仅清空本地配置，使其保留在原处。
+     *
+     * 清除后所有密码本位置/加密标记（has_db / has_password / 外部 URI / 内部 URI / 当前文件）
+     * 被一并清空，应用回到“全新”状态；MainActivity 重建后 `hasDatabase=false`，
+     * 进入「创建密码本」界面，而非停在原有密码本的解锁/选择界面。
+     */
     fun clearAllData(): Boolean {
         return try {
-            // 删除所有 SharedPreferences（含主密码、密码本密码、文件保存位置等全部设置）
+            // 判断当前是否为应用私有目录密码本：既无外部文件 URI，也无外部文件夹 URI（SAF 场景）。
+            val isPrivateDirVault =
+                prefs(context).getString(KEY_DB_EXTERNAL_URI, null).isNullOrBlank()
+                        && prefs(context).getString(KEY_DB_URI, null).isNullOrBlank()
+            // 私有目录场景下，先重命名旧密码本文件，避免新建时被覆盖。
+            if (isPrivateDirVault) {
+                val localFile = dbFile
+                if (localFile.exists()) {
+                    val renamed = renameFileToAvoidOverwrite(localFile)
+                    Log.d("MimaDB", "clearAllData: private-dir vault renamed=$renamed to avoid overwrite")
+                }
+            }
+            // 彻底清空应用偏好设置（含所有密码本位置与加密标记），不保留任何指向旧密码本的引用。
             prefs(context).edit().clear().apply()
             // 同时清除密码生成界面的独立 SharedPreferences（含生成密码用的主密码等设置）
             context.getSharedPreferences("generate_prefs", Context.MODE_PRIVATE).edit().clear().apply()
-            // 删除缓存目录中的临时文件（保留任何 .kdbx 密码本文件）
-            context.cacheDir?.listFiles()?.forEach { file ->
-                if (!file.name.endsWith(".kdbx", ignoreCase = true)) file.delete()
-            }
-            // 删除应用私有文件目录中的临时文件，但保留所有 .kdbx 密码本文件，
-            // 方便用户清除数据后仍可在列表中重新选择之前的密码本。
-            context.filesDir?.listFiles()?.forEach { file ->
-                if (!file.name.endsWith(".kdbx", ignoreCase = true)) file.delete()
-            }
+            // 删除缓存目录中的临时文件
+            context.cacheDir?.listFiles()?.forEach { file -> file.delete() }
+            // 外部存储场景下的 .kdbx 文件原样保留，不删除、不重命名。
             true
         } catch (e: Exception) {
             Log.e("MimaDB", "clearAllData failed", e)
@@ -1321,7 +1338,7 @@ class DatabaseManager(private val context: Context) {
         return entries
     }
 
-    fun addPasswordBookEntry(
+    suspend fun addPasswordBookEntry(
         title: String,
         username: String,
         password: String,
@@ -1354,7 +1371,7 @@ class DatabaseManager(private val context: Context) {
     }
 
     /** 覆盖保存密码本条目的密码/主密码/版本号。覆盖前会把当前条目克隆进它自己的历史（KDBX 原生机制），版本号+1 */
-    fun overwriteVaultEntry(
+    suspend fun overwriteVaultEntry(
         entry: EntryKDBX,
         password: String,
         masterPassword: String = "",
@@ -1405,7 +1422,7 @@ class DatabaseManager(private val context: Context) {
 
     // ==================== 历史记录操作 ====================
 
-    fun addHistoryEntry(site: String, login: String, password: String, masterPassword: String = ""): Boolean {
+    suspend fun addHistoryEntry(site: String, login: String, password: String, masterPassword: String = ""): Boolean {
         val db = database ?: return false
         val historyGroup = getHistoryGroup(db) ?: return false
 
@@ -1451,7 +1468,7 @@ class DatabaseManager(private val context: Context) {
         return historyGroup.getChildEntries() as? List<EntryKDBX> ?: emptyList()
     }
 
-    fun deleteHistoryEntry(entry: EntryKDBX): Boolean {
+    suspend fun deleteHistoryEntry(entry: EntryKDBX): Boolean {
         val db = database ?: return false
         val historyGroup = getHistoryGroup(db) ?: return false
         historyGroup.removeChildEntry(entry)
@@ -1475,7 +1492,7 @@ class DatabaseManager(private val context: Context) {
         return groups
     }
 
-    fun deleteEntry(entry: EntryKDBX): Boolean {
+    suspend fun deleteEntry(entry: EntryKDBX): Boolean {
         val db = database ?: return false
         val parent = entry.parent as? GroupKDBX
         parent?.removeChildEntry(entry)

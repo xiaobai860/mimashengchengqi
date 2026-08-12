@@ -19,6 +19,10 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -36,6 +40,7 @@ fun PasswordBookScreen(
     onViewHistory: (EntryKDBX) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var entries by remember { mutableStateOf(emptyList<EntryKDBX>()) }
     var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -109,9 +114,13 @@ fun PasswordBookScreen(
                         onCopy = { onCopy(String(entry.password)) },
                         onClick = { onViewHistory(entry) },
                         onDelete = {
-                            dbManager.deleteEntry(entry)
-                            dbManager.saveDatabase()
-                            reload()
+                            scope.launch(Dispatchers.IO) {
+                                dbManager.deleteEntry(entry)
+                                dbManager.saveDatabase()
+                                withContext(Dispatchers.Main) {
+                                    reload()
+                                }
+                            }
                         }
                     )
                 }
@@ -123,16 +132,20 @@ fun PasswordBookScreen(
         AddEntryDialog(
             onDismiss = { showAddDialog = false },
             onConfirm = { title, username, password, url, notes ->
-                dbManager.addPasswordBookEntry(
-                    title = title,
-                    username = username,
-                    password = password,
-                    url = url,
-                    notes = notes
-                )
-                dbManager.saveDatabase()
-                reload()
-                showAddDialog = false
+                scope.launch(Dispatchers.IO) {
+                    dbManager.addPasswordBookEntry(
+                        title = title,
+                        username = username,
+                        password = password,
+                        url = url,
+                        notes = notes
+                    )
+                    dbManager.saveDatabase()
+                    withContext(Dispatchers.Main) {
+                        reload()
+                        showAddDialog = false
+                    }
+                }
             }
         )
     }

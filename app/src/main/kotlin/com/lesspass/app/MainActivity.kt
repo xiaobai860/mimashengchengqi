@@ -34,6 +34,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -58,6 +62,7 @@ import com.lesspass.app.BuildConfig
 import com.kunzisoft.keepass.database.element.entry.EntryKDBX
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 
 class MainActivity : FragmentActivity() {
     // 文件夹选择器的结果通过传统 startActivityForResult + onActivityResult 接收，
@@ -93,15 +98,16 @@ class MainActivity : FragmentActivity() {
 
                     LaunchedEffect(Unit) {
                         if (!dbManager.unlocked) {
-                            if (!dbManager.hasPassword) {
-                                // 无密码库：直接进入
-                                dbManager.openDatabase("")
-                            } else if (dbManager.autoUnlock) {
-                                // 有密码库 + 自动解锁开启：用保存的密码自动打开
+                            // 仅当用户开启过“自动解锁”时才自动打开密码本；
+                            // 清除数据会移除 auto_unlock 标记，从而停在解锁/选择界面，
+                            // 由用户在「打开已有密码本」列表中手动选中并输入密码，不会直接进应用。
+                            if (dbManager.autoUnlock) {
                                 val cred = CredentialStore(context)
                                 val savedPwd = cred.getAutoPassword(dbManager.vaultId)
                                 if (savedPwd != null) {
                                     dbManager.openDatabase(savedPwd)
+                                } else {
+                                    dbManager.openDatabase("")
                                 }
                             }
                         }
@@ -164,6 +170,7 @@ fun MainScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // 保存至密码本时的冲突 / 历史查看 对话框状态
     var conflictState by remember { mutableStateOf<ConflictState?>(null) }
@@ -177,28 +184,34 @@ fun MainScreen(
         masterPassword: String,
         version: Int,
     ) {
-        val existing = dbManager.findVaultEntry(site, username)
-        if (existing == null) {
-            dbManager.addPasswordBookEntry(
-                title = site,
-                username = username,
-                password = password,
-                url = site,
-                masterPassword = masterPassword,
-                version = version
-            )
-            dbManager.saveDatabase()
-            Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
-        } else {
-            conflictState = ConflictState(
-                site = site,
-                username = username,
-                password = password,
-                masterPassword = masterPassword,
-                version = version,
-                existing = existing,
-                samePassword = String(existing.password) == password
-            )
+        scope.launch(Dispatchers.IO) {
+            val existing = dbManager.findVaultEntry(site, username)
+            if (existing == null) {
+                dbManager.addPasswordBookEntry(
+                    title = site,
+                    username = username,
+                    password = password,
+                    url = site,
+                    masterPassword = masterPassword,
+                    version = version
+                )
+                dbManager.saveDatabase()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    conflictState = ConflictState(
+                        site = site,
+                        username = username,
+                        password = password,
+                        masterPassword = masterPassword,
+                        version = version,
+                        existing = existing,
+                        samePassword = String(existing.password) == password
+                    )
+                }
+            }
         }
     }
 
@@ -278,14 +291,18 @@ fun MainScreen(
                 conflictState = null
             },
             onOverwrite = {
-                dbManager.overwriteVaultEntry(
-                    entry = cs.existing,
-                    password = cs.password,
-                    masterPassword = cs.masterPassword,
-                    version = cs.version
-                )
-                conflictState = null
-                Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
+                scope.launch(Dispatchers.IO) {
+                    dbManager.overwriteVaultEntry(
+                        entry = cs.existing,
+                        password = cs.password,
+                        masterPassword = cs.masterPassword,
+                        version = cs.version
+                    )
+                    withContext(Dispatchers.Main) {
+                        conflictState = null
+                        Toast.makeText(context, context.getString(R.string.saved_to_vault), Toast.LENGTH_SHORT).show()
+                    }
+                }
             },
             onRegenerate = {
                 // 计数器+1，切到生成页，保留网站/用户名输入不清除
@@ -410,6 +427,7 @@ fun GenerateScreen(
     pendingRegenerate: MutableState<RegenerateRequest?>,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
     // 加载持久化设置
@@ -637,13 +655,15 @@ fun GenerateScreen(
                     password = pwd
                     showSaveDialog = true
 
-                    dbManager.addHistoryEntry(
-                        site = site,
-                        login = login,
-                        password = pwd,
-                        masterPassword = masterPassword,
-                    )
-                    dbManager.saveDatabase()
+                    scope.launch(Dispatchers.IO) {
+                        dbManager.addHistoryEntry(
+                            site = site,
+                            login = login,
+                            password = pwd,
+                            masterPassword = masterPassword,
+                        )
+                        dbManager.saveDatabase()
+                    }
                 }
             },
             enabled = algorithmSupported,
@@ -750,6 +770,7 @@ fun SettingsScreen(
     var timeoutMinutes by remember { mutableStateOf(dbManager.timeoutMinutes) }
     var autoUnlock by remember { mutableStateOf(dbManager.autoUnlock) }
     val hasPassword = dbManager.hasPassword
+    val scope = rememberCoroutineScope()
     // 密码本未设置密码时，超时锁定不可用（锁定后无法解锁）
     val timeoutUsable = hasPassword && !autoUnlock
     var fpEnabled by remember { mutableStateOf(credentialStore.hasFingerprintPassword(dbManager.vaultId)) }
@@ -1202,28 +1223,34 @@ fun SettingsScreen(
         // 导出 KDBX 文件
         OutlinedButton(
             onClick = {
-                try {
-                    val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
-                    val baos = java.io.ByteArrayOutputStream()
-                    dbManager.exportToOutputStream(baos)
-                    val bytes = baos.toByteArray()
-                    val tempFile = File.createTempFile("kdbx_export_", ".kdbx", context.cacheDir)
-                    tempFile.writeBytes(bytes)
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "application/octet-stream"
-                        val fileUri = androidx.core.content.FileProvider.getUriForFile(
-                            context,
-                            "${context.packageName}.fileprovider",
-                            tempFile
-                        )
-                        putExtra(Intent.EXTRA_STREAM, fileUri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
+                        val baos = java.io.ByteArrayOutputStream()
+                        dbManager.exportToOutputStream(baos)
+                        val bytes = baos.toByteArray()
+                        val tempFile = File.createTempFile("kdbx_export_", ".kdbx", context.cacheDir)
+                        tempFile.writeBytes(bytes)
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/octet-stream"
+                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                tempFile
+                            )
+                            putExtra(Intent.EXTRA_STREAM, fileUri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        withContext(Dispatchers.Main) {
+                            context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_kdbx)))
+                            exportError = null
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            exportError = context.getString(R.string.export_failed, e.message ?: "")
+                        }
+                        e.printStackTrace()
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_kdbx)))
-                    exportError = null
-                } catch (e: Exception) {
-                    exportError = context.getString(R.string.export_failed, e.message ?: "")
-                    e.printStackTrace()
                 }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -1621,6 +1648,7 @@ private fun ChangePasswordDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var oldPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -1671,23 +1699,28 @@ private fun ChangePasswordDialog(
                         errorMessage = context.getString(R.string.new_passwords_mismatch)
                         return@TextButton
                     }
-                    if (dbManager.changePassword(oldPassword, newPassword)) {
-                        // 密码已变更，旧的指纹凭据对应的密码失效，必须清除并提示重新设置
-                        val fpVault = dbManager.vaultId
-                        if (credentialStore.hasFingerprintPassword(fpVault)) {
-                            credentialStore.clearFingerprintPassword(fpVault)
-                            onPasswordChanged()
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.password_changed_fingerprint_invalid),
-                                Toast.LENGTH_LONG
-                            ).show()
-                        } else {
-                            Toast.makeText(context, context.getString(R.string.password_changed_success), Toast.LENGTH_SHORT).show()
+                    scope.launch(Dispatchers.IO) {
+                        val success = dbManager.changePassword(oldPassword, newPassword)
+                        withContext(Dispatchers.Main) {
+                            if (success) {
+                                // 密码已变更，旧的指纹凭据对应的密码失效，必须清除并提示重新设置
+                                val fpVault = dbManager.vaultId
+                                if (credentialStore.hasFingerprintPassword(fpVault)) {
+                                    credentialStore.clearFingerprintPassword(fpVault)
+                                    onPasswordChanged()
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.password_changed_fingerprint_invalid),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    Toast.makeText(context, context.getString(R.string.password_changed_success), Toast.LENGTH_SHORT).show()
+                                }
+                                onDismiss()
+                            } else {
+                                errorMessage = context.getString(R.string.password_change_failed)
+                            }
                         }
-                        onDismiss()
-                    } else {
-                        errorMessage = context.getString(R.string.password_change_failed)
                     }
                 },
                 enabled = true
@@ -1918,7 +1951,7 @@ private fun EntryHistoryDialog(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(history, key = { it.id.toString() }) { h ->
+                    itemsIndexed(history, key = { index, h -> "${h.id}_${h.creationTime.toMilliseconds()}_$index" }) { _, h ->
                         val version = dbManager.getVersionFromEntry(h)
                         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(8.dp)) {

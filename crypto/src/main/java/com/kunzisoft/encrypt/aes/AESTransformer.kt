@@ -32,15 +32,18 @@ import javax.crypto.spec.SecretKeySpec
 object AESTransformer {
 
     fun transformKey(seed: ByteArray?, key: ByteArray?, rounds: Long?): ByteArray? {
-        // Prefer the native final key implementation
-        return try {
-            NativeLib.init()
-            NativeAESKeyTransformer.nTransformKey(seed, key, rounds!!)
-        } catch (exception: Exception) {
-            Log.e(AESTransformer::class.java.simpleName, "Unable to perform native AES key transformation", exception)
-            // Fall back on the android crypto implementation
-            transformKeyInJVM(seed, key, rounds)
+        // Prefer the native final key implementation when available
+        if (NativeLib.init()) {
+            return try {
+                NativeAESKeyTransformer.nTransformKey(seed, key, rounds!!)
+            } catch (exception: Throwable) {
+                Log.e(AESTransformer::class.java.simpleName, "Unable to perform native AES key transformation", exception)
+                // Fall back on the android crypto implementation
+                transformKeyInJVM(seed, key, rounds)
+            }
         }
+        // No native library (JNI not compiled in this project): use pure JVM implementation
+        return transformKeyInJVM(seed, key, rounds)
     }
 
     @SuppressLint("GetInstance")
