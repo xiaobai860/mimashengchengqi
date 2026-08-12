@@ -2,8 +2,6 @@
 <resources>
     <string name="app_name">Password Generator</string>
     <!-- Titles -->
-    <string name="title">Password Generator</string>
-    <string name="subtitle">Stateless password manager — remember one master password</string>
     <!-- Fields -->
     <string name="site">Site</string>
     <string name="login">Login</string>
@@ -19,8 +17,6 @@
     <string name="generate">GENERATE</string>
     <string name="clear">Clear</string>
     <string name="copy">Copy</string>
-    <string name="show">Show</string>
-    <string name="hide">Hide</string>
     <!-- Messages -->
     <string name="site_required">Site is required</string>
     <string name="master_password_required">Master Password is required</string>
@@ -47,11 +43,9 @@
     <string name="exclude_ambiguous">Exclude similar characters (0/O/o, 1/l/I/i, |, `)</string>
     <string name="exclude_ambiguous_warning">⚠ Enabling this makes passwords incompatible with official LessPass; consistency is only guaranteed across devices within this app</string>
     <string name="self_test_failed">⚠ Algorithm self-test failed, passwords may be incompatible with the official version</string>
-    <string name="testing">Testing…</string>
     <string name="save">Save</string>
     <string name="saved_to_vault">Saved to password book</string>
     <string name="unlock_vault_first">Unlock the password book first</string>
-    <string name="master_password_strength_desc">Master password strength</string>
     <string name="show_master_password">Show master password</string>
     <string name="hide_master_password">Hide master password</string>
     <string name="clipboard_label">Password Generator</string>
@@ -62,31 +56,16 @@
     <string name="delete_desc">Delete</string>
     <!-- Vault screen -->
     <string name="vault_title">Password Book</string>
-    <string name="search_vault">Search password book…</string>
-    <string name="all">All</string>
-    <string name="open_vault">Open Password Book</string>
-    <string name="create_new_vault">Create New Password Book</string>
     <string name="vault_name">Name</string>
     <string name="vault_username">Username</string>
     <string name="vault_password">Password</string>
     <string name="vault_url">URL</string>
     <string name="vault_notes">Notes</string>
-    <string name="vault_type">Type</string>
-    <string name="vault_login">Login</string>
-    <string name="vault_card">Card</string>
     <string name="vault_add_entry">Add Entry</string>
-    <string name="vault_empty">No entries yet</string>
     <string name="vault_save">Save</string>
     <string name="vault_cancel">Cancel</string>
     <!-- Unlock screen -->
-    <string name="unlock_title">Unlock Password Book</string>
-    <string name="unlock_vault">Unlock Vault</string>
-    <string name="unlock_subtitle">Enter the master password to unlock</string>
-    <string name="unlock_no_password_needed">This password book has no password, unlock directly</string>
-    <string name="unlocked">Unlocked</string>
     <string name="change_password">Change Password</string>
-    <string name="create_password">Set Password</string>
-    <string name="create_password_book">Create Password Book</string>
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
     <string name="security_settings">Security Settings</string>
@@ -120,7 +99,6 @@
     <string name="change_kdbx_password">Change KDBX Password</string>
     <string name="set_kdbx_password">Set KDBX Password</string>
     <string name="modify_file_location">Modify File Save Location</string>
-    <string name="export_kdbx">Export KDBX File</string>
     <string name="share_kdbx">Share KDBX File</string>
     <string name="export_failed">Export failed: %1$s</string>
     <string name="switched">Switched</string>
@@ -193,7 +171,6 @@
     <string name="search_vault_hint">Search by site or username</string>
     <string name="no_results">No matching entries</string>
     <string name="save_to_vault">Save to Vault</string>
-    <string name="view_history">View History</string>
     <string name="version_label">Version: %1$d</string>
     <string name="history_title">Password History for %1$s</string>
     <string name="history_empty_site">No history found for this site</string>
@@ -203,5 +180,4 @@
     <string name="view_existing">View Password</string>
     <string name="overwrite">Overwrite</string>
     <string name="regenerate_next">Regenerate (counter +1)</string>
-    <string name="generated_copy">Generated</string>
 </resources>

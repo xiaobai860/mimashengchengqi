@@ -17,10 +17,23 @@ android {
         versionName = "2.9"
     }
 
+    // 签名配置从用户级 ~/.gradle/gradle.properties 读取（密钥库在项目外 E:\Android\paibanrili），
+    // 不写入本仓库，避免被提交到 GitHub。
+    signingConfigs {
+        create("release") {
+            val storeFileProp = findProperty("RELEASE_STORE_FILE") as? String
+            storeFile = if (storeFileProp != null) file(storeFileProp) else null
+            storePassword = findProperty("RELEASE_STORE_PASSWORD") as? String
+            keyAlias = findProperty("RELEASE_KEY_ALIAS") as? String
+            keyPassword = findProperty("RELEASE_KEY_PASSWORD") as? String
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

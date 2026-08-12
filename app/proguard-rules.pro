@@ -13,3 +13,8 @@
 
 # MasterCredential
 -keep class com.kunzisoft.keepass.database.element.MasterCredential { *; }
+
+# joda-time 依赖的 joda-convert 注解（未打包进 APK，仅编译期注解，运行时不需）
+-dontwarn org.joda.convert.**
+-keep class org.joda.time.** { *; }
+-dontwarn org.joda.time.**
