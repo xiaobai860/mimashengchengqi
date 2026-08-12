@@ -49,6 +49,7 @@ import com.lesspass.app.R
 import com.lesspass.app.crypto.Finger
 import com.lesspass.app.crypto.LessPassEngine
 import com.lesspass.app.crypto.PasswordProfile
+import com.lesspass.app.data.CredentialStore
 import com.lesspass.app.data.DatabaseManager
 import com.lesspass.app.data.TimeoutManager
 import com.lesspass.app.data.PasswordEntry
@@ -73,29 +74,39 @@ class MainActivity : ComponentActivity() {
                             fixInvalidDbUriIfNeeded()
                         }
                     }
-                    // 无密码密码本自动解锁
-                    val autoUnlock = remember { dbManager.autoUnlock }
-                    var isUnlocked by remember { mutableStateOf(dbManager.unlocked || autoUnlock) }
+                    // 自动解锁（用户设置项，默认关闭）：
+                    // - 无密码密码本：原本就免密，进入即加载（不影响无密码逻辑）。
+                    // - 有密码密码本且开启自动解锁：用 CredentialStore 保存的密码自动打开。
+                    var isUnlocked by remember { mutableStateOf(dbManager.unlocked) }
 
-                    // 自动解锁（无密码密码本）：进程重启后 dbManager 尚未真正加载数据库，
-                    // 必须在进入主界面之前先 openDatabase("") 把 database 载入内存，
-                    // 否则历史记录/密码本数据会因 database==null 而显示为空。
-                    LaunchedEffect(autoUnlock) {
-                        if (autoUnlock && !dbManager.unlocked) {
-                            dbManager.openDatabase("")
+                    LaunchedEffect(Unit) {
+                        if (!dbManager.unlocked) {
+                            if (!dbManager.hasPassword) {
+                                // 无密码库：直接进入
+                                dbManager.openDatabase("")
+                            } else if (dbManager.autoUnlock) {
+                                // 有密码库 + 自动解锁开启：用保存的密码自动打开
+                                val cred = CredentialStore(context)
+                                val savedPwd = cred.getAutoPassword(dbManager.vaultId)
+                                if (savedPwd != null) {
+                                    dbManager.openDatabase(savedPwd)
+                                }
+                            }
                         }
-                        isUnlocked = dbManager.unlocked || dbManager.autoUnlock
+                        isUnlocked = dbManager.unlocked
                     }
-                    Log.d("MimaDB", "onCreate state: isUnlocked=$isUnlocked autoUnlock=$autoUnlock hasDatabase=${dbManager.hasDatabase}")
+                    Log.d("MimaDB", "onCreate state: isUnlocked=$isUnlocked hasDatabase=${dbManager.hasDatabase}")
                     val timeoutManager = remember { TimeoutManager(dbManager, onLock = { isUnlocked = false }) }
+                    val credentialStore = remember { CredentialStore(context) }
 
                     if (!isUnlocked) {
                         UnlockScreen(
                             dbManager = dbManager,
+                            credentialStore = credentialStore,
                             onUnlocked = { isUnlocked = true }
                         )
                     } else {
-                        MainScreen(dbManager = dbManager, timeoutManager = timeoutManager)
+                        MainScreen(dbManager = dbManager, timeoutManager = timeoutManager, credentialStore = credentialStore)
                     }
                 }
             }
@@ -104,9 +115,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(dbManager: DatabaseManager, timeoutManager: TimeoutManager) {
+fun MainScreen(dbManager: DatabaseManager, timeoutManager: TimeoutManager, credentialStore: CredentialStore) {
     LaunchedEffect(Unit) {
-        timeoutManager.start()
+        // 自动解锁开启时，超时锁定功能禁用（按需求）；否则按设置项启用
+        if (dbManager.timeoutEnabled && !dbManager.autoUnlock) {
+            timeoutManager.setTimeout(dbManager.timeoutMinutes * 60 * 1000L)
+            timeoutManager.start()
+        } else {
+            timeoutManager.stop()
+        }
     }
     DisposableEffect(Unit) {
         onDispose { timeoutManager.stop() }
@@ -150,7 +167,7 @@ fun MainScreen(dbManager: DatabaseManager, timeoutManager: TimeoutManager) {
                 0 -> GenerateScreen(dbManager = dbManager)
                 1 -> HistoryScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it, "已复制到剪贴板") })
                 2 -> PasswordBookScreen(dbManager = dbManager, onCopy = { copyToClipboard(context, it, "已复制到剪贴板") })
-                3 -> SettingsScreen(dbManager = dbManager)
+                3 -> SettingsScreen(dbManager = dbManager, credentialStore = credentialStore)
             }
         }
     }
@@ -564,9 +581,19 @@ fun GenerateScreen(dbManager: DatabaseManager) {
 }
 
 @Composable
-fun SettingsScreen(dbManager: DatabaseManager) {
+@OptIn(ExperimentalMaterial3Api::class)
+fun SettingsScreen(dbManager: DatabaseManager, credentialStore: CredentialStore) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+
+    // ============ 安全设置状态 ============
+    var timeoutEnabled by remember { mutableStateOf(dbManager.timeoutEnabled) }
+    var timeoutMinutes by remember { mutableStateOf(dbManager.timeoutMinutes) }
+    var autoUnlock by remember { mutableStateOf(dbManager.autoUnlock) }
+    var fpEnabled by remember { mutableStateOf(credentialStore.hasFingerprintPassword(dbManager.vaultId)) }
+    var fpSnackbar by remember { mutableStateOf<String?>(null) }
+    val timeoutOptions = listOf(1, 5, 15, 30)
+    var timeoutExpanded by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var exportError by remember { mutableStateOf<String?>(null) }
     var moveError by remember { mutableStateOf<String?>(null) }
@@ -668,6 +695,176 @@ fun SettingsScreen(dbManager: DatabaseManager) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("设置", style = MaterialTheme.typography.titleLarge)
+
+        // ==================== 安全设置 ====================
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            tonalElevation = 1.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("安全设置", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+
+                // 超时锁定
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("超时锁定", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "无操作一段时间后自动锁定${if (autoUnlock) "（自动解锁开启时已禁用）" else ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = timeoutEnabled && !autoUnlock,
+                        enabled = !autoUnlock,
+                        onCheckedChange = {
+                            timeoutEnabled = it
+                            dbManager.setTimeoutEnabled(it)
+                        }
+                    )
+                }
+                if (timeoutEnabled && !autoUnlock) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("锁定时长", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        ExposedDropdownMenuBox(
+                            expanded = timeoutExpanded,
+                            onExpandedChange = { timeoutExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = "${timeoutMinutes} 分钟",
+                                onValueChange = {},
+                                readOnly = true,
+                                modifier = Modifier.menuAnchor().width(120.dp),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = timeoutExpanded) },
+                                textStyle = MaterialTheme.typography.bodySmall
+                            )
+                            ExposedDropdownMenu(
+                                expanded = timeoutExpanded,
+                                onDismissRequest = { timeoutExpanded = false }
+                            ) {
+                                timeoutOptions.forEach { opt ->
+                                    DropdownMenuItem(
+                                        text = { Text("$opt 分钟") },
+                                        onClick = {
+                                            timeoutMinutes = opt
+                                            dbManager.setTimeoutMinutes(opt)
+                                            timeoutExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // 自动解锁
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("自动解锁", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "开启后进入应用自动解锁密码本（需保存密码本密码）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoUnlock,
+                        enabled = dbManager.hasPassword,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                if (dbManager.unlocked) {
+                                    credentialStore.storeAutoPassword(dbManager.vaultId, dbManager.currentPassword ?: "")
+                                    dbManager.setAutoUnlock(true)
+                                    autoUnlock = true
+                                } else {
+                                    fpSnackbar = "请先解锁密码本后再开启自动解锁"
+                                }
+                            } else {
+                                credentialStore.clearAutoPassword(dbManager.vaultId)
+                                dbManager.setAutoUnlock(false)
+                                autoUnlock = false
+                            }
+                        }
+                    )
+                }
+                if (autoUnlock) {
+                    Text(
+                        "已为本密码本启用自动解锁",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // 指纹解锁
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("指纹解锁", style = MaterialTheme.typography.bodyMedium)
+                        val vaultName = dbManager.currentKdbxFile?.name ?: dbManager.currentKdbxUri?.lastPathSegment ?: "当前密码本"
+                        Text(
+                            "${vaultName}：${if (fpEnabled) "已设置" else "未设置"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (fpEnabled) {
+                            Text(
+                                "切换其他密码本后需重新设置",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (!fpEnabled) {
+                        Button(
+                            enabled = dbManager.unlocked && dbManager.hasPassword && CredentialStore.isBiometricAvailable(context),
+                            onClick = {
+                                if (dbManager.unlocked) {
+                                    credentialStore.storeFingerprintPassword(dbManager.vaultId, dbManager.currentPassword ?: "")
+                                    fpEnabled = true
+                                    fpSnackbar = "已为当前密码本启用指纹解锁"
+                                } else {
+                                    fpSnackbar = "请先解锁密码本后再设置指纹"
+                                }
+                            }
+                        ) {
+                            Text("设置指纹")
+                        }
+                    } else {
+                        OutlinedButton(onClick = {
+                            credentialStore.clearFingerprintPassword(dbManager.vaultId)
+                            fpEnabled = false
+                            fpSnackbar = "已清除指纹解锁"
+                        }) {
+                            Text("清除")
+                        }
+                    }
+                }
+            }
+        }
+        fpSnackbar?.let {
+            LaunchedEffect(it) {
+                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                fpSnackbar = null
+            }
+        }
 
         // ==================== 密码本状态（整合文件列表） ====================
         Surface(

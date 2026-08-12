@@ -48,6 +48,8 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_DB_DISPLAY_PATH = "db_display_path"
         private const val KEY_HAS_DB = "has_db"
         private const val KEY_AUTO_UNLOCK = "auto_unlock"
+        private const val KEY_TIMEOUT_ENABLED = "timeout_enabled"
+        private const val KEY_TIMEOUT_MINUTES = "timeout_minutes"
         private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
         private const val KEY_CURRENT_DB_FILE = "current_db_file"
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
@@ -90,11 +92,40 @@ class DatabaseManager(private val context: Context) {
     private var isUnlocked = false
     private var savedMasterPassword: String? = null
 
+    /** 当前打开的数据库来源 URI（如果是通过 SAF/内置 URI 打开），否则为 null（本地文件） */
+    private var currentOpenUri: Uri? = null
+
     /** 主密码在 kdbx 条目中存储的自定义字段名（第二个"密码"字段，受保护存储） */
     private val MASTER_PASSWORD_FIELD = "主密码"
 
     val unlocked: Boolean get() = isUnlocked
     val autoUnlock: Boolean get() = prefs(context).getBoolean(KEY_AUTO_UNLOCK, false)
+
+    /** 超时锁定是否启用（默认开启） */
+    val timeoutEnabled: Boolean get() = prefs(context).getBoolean(KEY_TIMEOUT_ENABLED, true)
+    /** 超时时长（分钟，默认 5） */
+    val timeoutMinutes: Int get() = prefs(context).getInt(KEY_TIMEOUT_MINUTES, 5)
+
+    fun setTimeoutEnabled(enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_TIMEOUT_ENABLED, enabled).apply()
+    }
+    fun setTimeoutMinutes(minutes: Int) {
+        prefs(context).edit().putInt(KEY_TIMEOUT_MINUTES, minutes).apply()
+    }
+
+    /**
+     * 当前密码本唯一标识：用于凭据隔离（自动解锁/指纹绑定到具体密码本）。
+     * 切换密码本后 vaultId 改变，旧凭据失效，需重新设置。
+     */
+    val vaultId: String
+        get() = dbExternalUri?.toString() ?: dbFile.absolutePath
+
+    fun setAutoUnlock(enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, enabled).apply()
+    }
+
+    /** 当前已解锁密码本的密码（用于自动解锁/指纹保存），未解锁为 null */
+    val currentPassword: String? get() = savedMasterPassword
     /** 当前已选中的密码本文件路径 */
     val currentKdbxFile: File? get() {
         val path = prefs(context).getString(KEY_CURRENT_DB_FILE, null)
@@ -230,12 +261,14 @@ class DatabaseManager(private val context: Context) {
             }
             database = db
             isUnlocked = true
+            currentOpenUri = uri
             savedMasterPassword = if (password.isNotEmpty()) password else null
             true
         } catch (e: Exception) {
             Log.e("MimaDB", "openDatabaseByUri failed", e)
             isUnlocked = false
             database = null
+            currentOpenUri = null
             savedMasterPassword = null
             false
         }
@@ -293,11 +326,6 @@ class DatabaseManager(private val context: Context) {
                 savedMasterPassword = if (hasPw) password else null
                 setHasPassword(hasPw)
                 setHasDatabase(true)
-                if (!hasPw) {
-                    prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
-                } else {
-                    prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
-                }
                 Log.d("MimaDB", "createDatabase: saved=$saved")
             } else {
                 // 保存失败，回滚状态
@@ -356,13 +384,9 @@ class DatabaseManager(private val context: Context) {
 
             database = db
             isUnlocked = true
+            currentOpenUri = null
             savedMasterPassword = if (password.isNotEmpty()) password else null
             setHasPassword(password.isNotEmpty())
-            if (!password.isNotEmpty()) {
-                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
-            } else {
-                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
-            }
             updateDisplayPath()
             setHasDatabase(true)
             val rootEntries = db.rootGroup?.let { root ->
@@ -417,11 +441,6 @@ class DatabaseManager(private val context: Context) {
             }
             savedMasterPassword = newPassword
             setHasPassword(newPassword.isNotEmpty())
-            if (!newPassword.isNotEmpty()) {
-                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
-            } else {
-                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
-            }
 
             saveDatabase()
             true
@@ -445,9 +464,21 @@ class DatabaseManager(private val context: Context) {
                 all.size
             } ?: 0
             Log.d("MimaDB", "saveDatabase: start, total entries in memory=$rootEntries, masterKey set=${db.masterKey != null}, kdfParams set=${db.kdfParameters != null}")
-            FileOutputStream(dbFile).use { stream ->
-                val output = DatabaseOutputKDBX(db)
-                output.writeDatabase(stream) { /* reuse existing key */ }
+            // 根据当前打开的库来源落盘：URI 库写回 URI，本地库写回 dbFile
+            val uri = currentOpenUri
+            if (uri != null) {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    val output = DatabaseOutputKDBX(db)
+                    output.writeDatabase(out) { }
+                } ?: run {
+                    Log.e("MimaDB", "saveDatabase: openOutputStream for URI failed")
+                    return false
+                }
+            } else {
+                FileOutputStream(dbFile).use { stream ->
+                    val output = DatabaseOutputKDBX(db)
+                    output.writeDatabase(stream) { /* reuse existing key */ }
+                }
             }
             Log.d("MimaDB", "saveDatabase: success, file size=${dbFile.length()}")
             true
@@ -862,12 +893,6 @@ class DatabaseManager(private val context: Context) {
                 .putString(KEY_DB_DISPLAY_PATH, displayPath)
                 .putString(KEY_CURRENT_DB_FILE, newFile.uri.path ?: newFile.uri.toString())
                 .apply()
-            
-            if (!password.isNotEmpty()) {
-                prefs(context).edit().putBoolean(KEY_AUTO_UNLOCK, true).apply()
-            } else {
-                prefs(context).edit().remove(KEY_AUTO_UNLOCK).apply()
-            }
             
             updateDisplayPath()
             setHasDatabase(true)
@@ -1307,6 +1332,7 @@ class DatabaseManager(private val context: Context) {
             entry.putField(Field(MASTER_PASSWORD_FIELD, ProtectedString(true, masterPassword)))
         }
         db.rootGroup?.addChildEntry(entry)
+        saveDatabase()
         return entry
     }
 
@@ -1333,6 +1359,7 @@ class DatabaseManager(private val context: Context) {
             entry.putField(Field(MASTER_PASSWORD_FIELD, ProtectedString(true, masterPassword)))
         }
         historyGroup.addChildEntry(entry)
+        saveDatabase()
 
         while (historyGroup.getChildEntries().size > MAX_HISTORY) {
             val children = historyGroup.getChildEntries() as? List<EntryKDBX> ?: break
@@ -1361,6 +1388,7 @@ class DatabaseManager(private val context: Context) {
         val db = database ?: return false
         val historyGroup = getHistoryGroup(db) ?: return false
         historyGroup.removeChildEntry(entry)
+        saveDatabase()
         return true
     }
 
@@ -1384,6 +1412,7 @@ class DatabaseManager(private val context: Context) {
         val db = database ?: return false
         val parent = entry.parent as? GroupKDBX
         parent?.removeChildEntry(entry)
+        saveDatabase()
         return true
     }
 

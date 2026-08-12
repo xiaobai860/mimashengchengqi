@@ -23,12 +23,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lesspass.app.data.DatabaseManager
+import com.lesspass.app.data.CredentialStore
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
 @Composable
 fun UnlockScreen(
     dbManager: DatabaseManager,
+    credentialStore: CredentialStore,
     onUnlocked: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -95,6 +97,8 @@ fun UnlockScreen(
             BiometricButton(
                 context = context,
                 dbManager = dbManager,
+                credentialStore = credentialStore,
+                vaultId = dbManager.vaultId,
                 executor = executor,
                 databasePassword = databasePassword,
                 onUnlocked = {
@@ -104,7 +108,7 @@ fun UnlockScreen(
                         errorMessage = "密码错误，请重试"
                     }
                 },
-                onFailed = { errorMessage = "生物识别失败" }
+                onFailed = { errorMessage = it }
             )
         }
 
@@ -154,10 +158,12 @@ fun UnlockScreen(
 private fun BiometricButton(
     context: Context,
     dbManager: DatabaseManager,
+    credentialStore: CredentialStore,
+    vaultId: String,
     executor: Executor,
     databasePassword: String,
     onUnlocked: () -> Unit,
-    onFailed: () -> Unit,
+    onFailed: (String) -> Unit,
 ) {
     val biometricManager = BiometricManager.from(context)
     val canAuthenticate = biometricManager.canAuthenticate(
@@ -171,36 +177,26 @@ private fun BiometricButton(
     val activity = context as? androidx.fragment.app.FragmentActivity
     if (activity == null) return
 
+    val fingerprintSet = credentialStore.hasFingerprintPassword(vaultId)
+
     OutlinedButton(
         onClick = {
-            try {
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("生物识别解锁")
-                    .setSubtitle("使用指纹或面部识别解锁密码本")
-                    .setNegativeButtonText("取消")
-                    .build()
-
-                val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            if (fingerprintSet) {
+                // 已设置指纹：验证指纹后取出保存的密码直接解锁
+                credentialStore.decryptFingerprint(
+                    vaultId = vaultId,
+                    activity = activity,
+                    onSuccess = { pwd ->
+                        if (dbManager.openDatabase(pwd)) {
                             onUnlocked()
+                        } else {
+                            onFailed("解锁失败，请重试或使用密码")
                         }
-                    }
-                    override fun onAuthenticationFailed() {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            onFailed()
-                        }
-                    }
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            onFailed()
-                        }
-                    }
-                })
-                prompt.authenticate(promptInfo)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                onFailed()
+                    },
+                    onError = { onFailed(it) }
+                )
+            } else {
+                onFailed("未设置指纹解锁，请先在设置中启用")
             }
         },
         modifier = Modifier.fillMaxWidth().height(44.dp),
@@ -208,6 +204,6 @@ private fun BiometricButton(
     ) {
         Icon(Icons.Filled.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
-        Text("生物识别解锁")
+        Text(if (fingerprintSet) "指纹解锁" else "指纹解锁（未设置）")
     }
 }
