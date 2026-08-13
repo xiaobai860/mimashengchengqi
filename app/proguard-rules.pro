@@ -19,9 +19,10 @@
 -keep class org.joda.time.** { *; }
 -dontwarn org.joda.time.**
 
-# LessPass 自有密码学实现：保留类与成员，避免 R8 的 optimize/shrink
-# 破坏 javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256") 的运行时查找
-#（release 下曾出现 NoSuchAlgorithmException，debug 正常，典型 R8 优化所致）。
+# LessPass 自有密码学实现：保留类与成员。
+# 说明：PBKDF2-HMAC-SHA256 改用 BouncyCastle 的 PKCS5S2ParametersGenerator(SHA256Digest())
+# 直接实现（非 javax.crypto 的 SecretKeyFactory SPI），以规避 Android 16 release 下
+# 系统 crypto provider 查找失败（NoSuchAlgorithmException）的问题。仍保留类以防 R8 误裁。
 -keep class com.lesspass.app.crypto.** { *; }
 -keepclassmembers class com.lesspass.app.crypto.** { *; }
 

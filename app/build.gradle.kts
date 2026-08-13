@@ -76,7 +76,7 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(project(":crypto"))
     implementation(project(":database"))
-    implementation("androidx.biometric:biometric:1.1.0")
+    implementation(libs.androidx.biometric)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))

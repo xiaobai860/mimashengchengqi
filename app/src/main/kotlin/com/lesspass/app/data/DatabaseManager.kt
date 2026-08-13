@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.DocumentsContract
+import com.lesspass.app.R
 import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
@@ -23,6 +24,7 @@ import com.kunzisoft.keepass.utils.UnsignedInt
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.io.IOException
 import java.security.Security
 import kotlinx.coroutines.Dispatchers
@@ -178,7 +180,7 @@ class DatabaseManager(private val context: Context) {
             val treeIdx = segments.indexOf("tree")
             if (treeIdx >= 0 && treeIdx + 1 < segments.size) {
                 val docId = segments.subList(treeIdx + 1, segments.size).joinToString("/").removePrefix("primary:")
-                "内部存储/$docId/"
+                context.getString(R.string.internal_storage) + "/$docId/"
             } else null
         }
         if (computed != null && current != computed) {
@@ -272,7 +274,7 @@ class DatabaseManager(private val context: Context) {
             remaining[0] = remaining[0].removePrefix("secondary:")
         }
         
-        return "内部存储/${remaining.joinToString("/")}"
+        return context.getString(R.string.internal_storage) + "/${remaining.joinToString("/")}"
     }
 
     /** 用 URI 打开数据库（适用于文件选择器选取的文件） */
@@ -308,6 +310,14 @@ class DatabaseManager(private val context: Context) {
         }
     }
 
+    /**
+     * 集中封装 KDBX 写库逻辑，避免在多处重复构造 DatabaseOutputKDBX 与 writeDatabase 调用。
+     * 写库时复用数据库已有的主密钥（空 lambda），不会重新派生。
+     */
+    private fun writeKdbx(db: DatabaseKDBX, out: OutputStream) {
+        DatabaseOutputKDBX(db).writeDatabase(out) { }
+    }
+
     /** 用 URI 保存数据库 */
     private fun saveDatabaseByUri(uri: Uri): Boolean {
         return try {
@@ -319,8 +329,7 @@ class DatabaseManager(private val context: Context) {
             } ?: 0
             Log.d("MimaDB", "saveDatabaseByUri: start, entries=$rootEntries")
             context.contentResolver.openOutputStream(uri)?.use { out ->
-                val output = DatabaseOutputKDBX(db)
-                output.writeDatabase(out) { }
+                writeKdbx(db, out)
             }
             Log.d("MimaDB", "saveDatabaseByUri: success")
             true
@@ -389,6 +398,7 @@ class DatabaseManager(private val context: Context) {
      * password 为空时直接打开（无加密）。
      */
     suspend fun openDatabase(password: String): Boolean = withContext(Dispatchers.IO) {
+        ensureBouncyCastleRegistered()
         try {
             // 1. 优先尝试外部 URI（用户通过文件管理选择的 .kdbx）
             val externalUri = dbExternalUri
@@ -491,8 +501,6 @@ class DatabaseManager(private val context: Context) {
         }
     }
 
-    private fun passwordNullOrBlank(pw: String?): Boolean = pw.isNullOrBlank()
-
     /**
      * 保存数据库到文件。必须在后台线程调用（含 KDF 重加密与文件 IO）。
      */
@@ -509,19 +517,18 @@ class DatabaseManager(private val context: Context) {
             val uri = currentOpenUri
             if (uri != null) {
                 context.contentResolver.openOutputStream(uri)?.use { out ->
-                    val output = DatabaseOutputKDBX(db)
-                    output.writeDatabase(out) { }
+                    writeKdbx(db, out)
                 } ?: run {
                     Log.e("MimaDB", "saveDatabase: openOutputStream for URI failed")
                     return@withContext false
                 }
             } else {
                 FileOutputStream(dbFile).use { stream ->
-                    val output = DatabaseOutputKDBX(db)
-                    output.writeDatabase(stream) { /* reuse existing key */ }
+                    writeKdbx(db, stream)
                 }
             }
-            Log.d("MimaDB", "saveDatabase: success, file size=${dbFile.length()}")
+            val savedTo = uri ?: dbFile
+            Log.d("MimaDB", "saveDatabase: success, target=$savedTo, size=${savedTo?.let { if (it is java.io.File) it.length() else -1L } ?: -1L}")
             true
         } catch (e: Exception) {
             Log.e("MimaDB", "saveDatabase failed: ${e.message}", e)
@@ -542,8 +549,7 @@ class DatabaseManager(private val context: Context) {
     suspend fun exportToOutputStream(out: java.io.OutputStream): Boolean = withContext(Dispatchers.IO) {
         try {
             val db = database ?: return@withContext false
-            val output = DatabaseOutputKDBX(db)
-            output.writeDatabase(out) { }
+            writeKdbx(db, out)
             true
         } catch (e: Exception) {
             Log.e("MimaDB", "exportToOutputStream failed", e)
@@ -560,12 +566,11 @@ class DatabaseManager(private val context: Context) {
             val targetFile = File(targetPath)
             targetFile.parentFile?.mkdirs()
             FileOutputStream(targetFile).use { stream ->
-                val output = DatabaseOutputKDBX(db)
-                output.writeDatabase(stream) { /* reuse existing key */ }
+                writeKdbx(db, stream)
             }
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MimaDB", "exportDatabase failed", e)
             false
         }
     }
@@ -753,7 +758,7 @@ class DatabaseManager(private val context: Context) {
         return try {
             // 检查数据库是否已加载
             if (!isUnlocked || database == null) {
-                val msg = "数据库未解锁，请先打开密码本后再尝试迁移"
+                val msg = context.getString(R.string.db_not_unlocked_migrate)
                 Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
                 return Triple(false, "", msg)
             }
@@ -782,7 +787,7 @@ class DatabaseManager(private val context: Context) {
             // 在新文件夹创建文件
             val parentDir = DocumentFile.fromTreeUri(context, newFolderUri)
                 ?: run {
-                    val msg = "无法访问目标文件夹，请重新选择"
+                    val msg = context.getString(R.string.folder_access_failed)
                     Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
                     return Triple(false, "", msg)
                 }
@@ -797,7 +802,7 @@ class DatabaseManager(private val context: Context) {
                 null
             }
             if (newFile == null) {
-                val msg = "无法在目标文件夹中创建文件，请检查文件夹权限"
+                val msg = context.getString(R.string.folder_create_failed)
                 Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
                 return Triple(false, "", msg)
             }
@@ -806,13 +811,12 @@ class DatabaseManager(private val context: Context) {
             val db = database!!
             val outputStream = context.contentResolver.openOutputStream(newFile.uri)
                 ?: run {
-                    val msg = "无法打开目标文件进行写入"
+                    val msg = context.getString(R.string.file_open_write_failed)
                     Log.e("MimaDB", "migrateCurrentFileToFolder: $msg")
                     return Triple(false, "", msg)
                 }
             outputStream.use { out ->
-                val output = DatabaseOutputKDBX(db)
-                output.writeDatabase(out) { }
+                writeKdbx(db, out)
             }
             Log.d("MimaDB", "migrateCurrentFileToFolder: wrote database to ${newFile.uri}")
             
@@ -827,6 +831,9 @@ class DatabaseManager(private val context: Context) {
             
             updateDisplayPath()
             setHasDatabase(true)
+            // 关键：同步内存中的打开来源 URI，否则 saveDatabase() 仍会按旧值/ null 落盘，
+            // 导致新增/修改条目写回错误位置。
+            currentOpenUri = newFile.uri
             
             // 申请持久化权限
             try {
@@ -846,7 +853,7 @@ class DatabaseManager(private val context: Context) {
             Triple(true, newName, "")
         } catch (e: Exception) {
             Log.e("MimaDB", "migrateCurrentFileToFolder failed", e)
-            Triple(false, "", "迁移失败：${e.message}")
+            Triple(false, "", context.getString(R.string.migrate_failed_with_reason, e.message))
         }
     }
 
@@ -865,7 +872,7 @@ class DatabaseManager(private val context: Context) {
             // 在指定文件夹创建文件
             val parentDir = DocumentFile.fromTreeUri(context, folderUri)
                 ?: run {
-                    val msg = "无法访问目标文件夹，请重新选择"
+                    val msg = context.getString(R.string.folder_access_failed)
                     Log.e("MimaDB", "createNewKdbxInFolder: $msg")
                     return Triple(false, null, msg)
                 }
@@ -884,7 +891,7 @@ class DatabaseManager(private val context: Context) {
                 null
             }
             if (newFile == null) {
-                val msg = "无法在目标文件夹中创建文件，请检查文件夹权限"
+                val msg = context.getString(R.string.folder_create_failed)
                 Log.e("MimaDB", "createNewKdbxInFolder: $msg")
                 return Triple(false, null, msg)
             }
@@ -911,7 +918,7 @@ class DatabaseManager(private val context: Context) {
             // 直接写入到目标位置
             val outputStream = context.contentResolver.openOutputStream(newFile.uri)
                 ?: run {
-                    val msg = "无法打开目标文件进行写入"
+                    val msg = context.getString(R.string.file_open_write_failed)
                     Log.e("MimaDB", "createNewKdbxInFolder: $msg")
                     newFile.delete()
                     database = null
@@ -919,8 +926,7 @@ class DatabaseManager(private val context: Context) {
                     return Triple(false, null, msg)
                 }
             outputStream.use { out ->
-                val output = DatabaseOutputKDBX(db)
-                output.writeDatabase(out) { }
+                writeKdbx(db, out)
             }
             Log.d("MimaDB", "createNewKdbxInFolder: created ${newFile.uri}")
             
@@ -935,6 +941,9 @@ class DatabaseManager(private val context: Context) {
             
             updateDisplayPath()
             setHasDatabase(true)
+            // 关键：同步内存中的打开来源 URI，否则 saveDatabase() 仍会按旧值/ null 落盘，
+            // 导致新增/修改条目写回错误位置。
+            currentOpenUri = newFile.uri
             
             // 申请持久化权限
             try {
@@ -954,7 +963,7 @@ class DatabaseManager(private val context: Context) {
             Triple(true, newFile.uri, "")
         } catch (e: Exception) {
             Log.e("MimaDB", "createNewKdbxInFolder failed", e)
-            Triple(false, null, "创建失败：${e.message}")
+            Triple(false, null, context.getString(R.string.create_failed_with_reason, e.message))
         }
     }
 
@@ -972,17 +981,16 @@ class DatabaseManager(private val context: Context) {
             }
             // 用 DocumentFile 在目标文件夹中创建文件（兼容性更好）
             val parentDir = DocumentFile.fromTreeUri(context, folderUri)
-                ?: throw IOException("无法访问目标文件夹")
+                ?: throw IOException(context.getString(R.string.folder_access_failed))
             val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension("kdbx") ?: "application/octet-stream"
             val newFileName = currentKdbxFile?.name ?: "$defaultKdbxBaseName.kdbx"
             val newFile = parentDir.createFile(mimeType, newFileName)
-                ?: throw IOException("无法在目标文件夹中创建文件")
+                ?: throw IOException(context.getString(R.string.folder_create_failed))
             // 把当前数据库数据写入新文件
             if (database != null) {
                 val db = database!!
                 context.contentResolver.openOutputStream(newFile.uri)?.use { out ->
-                    val output = DatabaseOutputKDBX(db)
-                    output.writeDatabase(out) { }
+                    writeKdbx(db, out)
                 }
             }
             // 提取可读路径并存入 SharedPreferences

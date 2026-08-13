@@ -140,23 +140,26 @@ class CredentialStore(private val context: Context) {
                             android.os.Handler(android.os.Looper.getMainLooper()).post { onSuccess() }
                         } catch (e: Exception) {
                             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                onError("加密失败: ${e.message}")
+                                onError(context.getString(R.string.fp_encrypt_failed, e.message))
                             }
                         }
                     }
                     override fun onAuthenticationFailed() {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post { onError("指纹验证失败") }
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { onError(context.getString(R.string.fp_auth_failed)) }
                     }
                     override fun onAuthenticationError(code: Int, err: CharSequence) {
                         android.os.Handler(android.os.Looper.getMainLooper()).post { onError(err.toString()) }
                     }
                 })
             prompt.authenticate(
-                fingerprintPromptInfo("启用指纹解锁", "验证指纹以保存解锁凭据"),
+                fingerprintPromptInfo(
+                    context.getString(R.string.fp_prompt_title_enable),
+                    context.getString(R.string.fp_prompt_subtitle_enable)
+                ),
                 BiometricPrompt.CryptoObject(cipher)
             )
         } catch (e: Exception) {
-            onError("指纹设置初始化失败: ${e.message}")
+            onError(context.getString(R.string.fp_setup_init_failed, e.message))
         }
     }
 
@@ -171,7 +174,7 @@ class CredentialStore(private val context: Context) {
         onError: (String) -> Unit,
     ) {
         val blob = prefs.getString("fp_${sanitize(vaultId)}", null)
-        if (blob == null) { onError("未设置指纹解锁"); return }
+        if (blob == null) { onError(context.getString(R.string.fp_not_set)); return }
         try {
             val key = keyStore.getEntry(fpAlias(vaultId), null) as KeyStore.SecretKeyEntry
             val (ivB64, ctB64) = blob.split(":", limit = 2)
@@ -190,12 +193,12 @@ class CredentialStore(private val context: Context) {
                             }
                         } catch (e: Exception) {
                             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                onError("解密失败: ${e.message}")
+                                onError(context.getString(R.string.fp_decrypt_failed, e.message))
                             }
                         }
                     }
                     override fun onAuthenticationFailed() {
-                        android.os.Handler(android.os.Looper.getMainLooper()).post { onError("指纹验证失败") }
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { onError(context.getString(R.string.fp_auth_failed)) }
                     }
                     override fun onAuthenticationError(code: Int, err: CharSequence) {
                         android.os.Handler(android.os.Looper.getMainLooper()).post { onError(err.toString()) }
@@ -209,7 +212,7 @@ class CredentialStore(private val context: Context) {
                 BiometricPrompt.CryptoObject(cipher)
             )
         } catch (e: Exception) {
-            onError("指纹解锁初始化失败: ${e.message}")
+            onError(context.getString(R.string.fp_unlock_init_failed, e.message))
         }
     }
 

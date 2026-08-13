@@ -180,4 +180,21 @@
     <string name="view_existing">查看密码</string>
     <string name="overwrite">覆盖保存</string>
     <string name="regenerate_next">重新生成（计数器 +1）</string>
+    <!-- Runtime / async UI messages (extracted from previously hardcoded Chinese) -->
+    <string name="self_testing">自检中…</string>
+    <string name="fp_encrypt_failed">加密失败: %1$s</string>
+    <string name="fp_auth_failed">指纹验证失败</string>
+    <string name="fp_setup_init_failed">指纹设置初始化失败: %1$s</string>
+    <string name="fp_not_set">未设置指纹解锁</string>
+    <string name="fp_decrypt_failed">解密失败: %1$s</string>
+    <string name="fp_unlock_init_failed">指纹解锁初始化失败: %1$s</string>
+    <string name="db_not_unlocked_migrate">数据库未解锁，请先打开密码本后再尝试迁移</string>
+    <string name="folder_access_failed">无法访问目标文件夹，请重新选择</string>
+    <string name="folder_create_failed">无法在目标文件夹中创建文件，请检查文件夹权限</string>
+    <string name="file_open_write_failed">无法打开目标文件进行写入</string>
+    <string name="migrate_failed_with_reason">迁移失败：%1$s</string>
+    <string name="create_failed_with_reason">创建失败：%1$s</string>
+    <string name="fp_prompt_title_enable">启用指纹解锁</string>
+    <string name="fp_prompt_subtitle_enable">验证指纹以保存解锁凭据</string>
+    <string name="internal_storage">内部存储</string>
 </resources>

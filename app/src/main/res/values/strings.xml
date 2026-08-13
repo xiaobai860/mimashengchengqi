@@ -180,4 +180,21 @@
     <string name="view_existing">View Password</string>
     <string name="overwrite">Overwrite</string>
     <string name="regenerate_next">Regenerate (counter +1)</string>
+    <!-- Runtime / async UI messages (extracted from previously hardcoded Chinese) -->
+    <string name="self_testing">Self-testing…</string>
+    <string name="fp_encrypt_failed">Encryption failed: %1$s</string>
+    <string name="fp_auth_failed">Fingerprint verification failed</string>
+    <string name="fp_setup_init_failed">Fingerprint setup init failed: %1$s</string>
+    <string name="fp_not_set">Fingerprint unlock not set</string>
+    <string name="fp_decrypt_failed">Decryption failed: %1$s</string>
+    <string name="fp_unlock_init_failed">Fingerprint unlock init failed: %1$s</string>
+    <string name="db_not_unlocked_migrate">Database is locked. Please open the password book before migrating</string>
+    <string name="folder_access_failed">Cannot access the target folder, please choose again</string>
+    <string name="folder_create_failed">Cannot create a file in the target folder, please check folder permissions</string>
+    <string name="file_open_write_failed">Cannot open the target file for writing</string>
+    <string name="migrate_failed_with_reason">Migration failed: %1$s</string>
+    <string name="create_failed_with_reason">Creation failed: %1$s</string>
+    <string name="fp_prompt_title_enable">Enable Fingerprint Unlock</string>
+    <string name="fp_prompt_subtitle_enable">Verify your fingerprint to save the unlock credential</string>
+    <string name="internal_storage">Internal storage</string>
 </resources>

@@ -656,7 +656,7 @@ fun GenerateScreen(
             Icon(Icons.Filled.Settings, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (algorithmSupported) stringResource(R.string.generate) else "自检中…",
+                text = if (algorithmSupported) stringResource(R.string.generate) else stringResource(R.string.self_testing),
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
         }
