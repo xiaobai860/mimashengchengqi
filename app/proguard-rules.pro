@@ -25,10 +25,17 @@
 -keep class com.lesspass.app.crypto.** { *; }
 -keepclassmembers class com.lesspass.app.crypto.** { *; }
 
-# BouncyCastle：LessPass 的 PBKDF2-HMAC-SHA256 直接引用以下具体类
-#（PKCS5S2ParametersGenerator / SHA256Digest / KeyParameter），必须保留，
-# 否则 R8 会将其当作未使用而移除，导致运行时 NoClassDefFoundError。
-# 同时保留 KeePass 模块用到的 BouncyCastleProvider（provider 注册表间接引用）。
+# BouncyCastle：KeePassDX 引擎与 LessPass 均依赖它。
+# BouncyCastleProvider 通过内部注册表（反射/字符串类名）加载具体算法实现
+#（如 Blowfish KeyGenerator、AES、Twofish、ChaCha20 等，位于 org.bouncycastle.jcajce.provider.*），
+# R8 无法追踪这类间接引用，会把它们当未使用而 shrink，
+# 导致运行时 NoSuchAlgorithmException / NoClassDefFoundError
+#（例如 Android 16 release 下 DatabaseKDBX 构造时 Blowfish not available）。
+# 因此整体保留 provider 门面与 jcajce 实现包。
+-keep class org.bouncycastle.jce.provider.** { *; }
+-keepclassmembers class org.bouncycastle.jce.provider.** { *; }
+-keep class org.bouncycastle.jcajce.provider.** { *; }
+-keepclassmembers class org.bouncycastle.jcajce.provider.** { *; }
 -keep class org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator { *; }
 -keep class org.bouncycastle.crypto.digests.SHA256Digest { *; }
 -keep class org.bouncycastle.crypto.params.KeyParameter { *; }

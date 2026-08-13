@@ -16,7 +16,7 @@ import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
-import androidx.fragment.app.FragmentActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.MutableState
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ShareCompat
@@ -65,28 +65,30 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 
-class MainActivity : FragmentActivity() {
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            val context = LocalContext.current
+            val dbManager = remember {
+                DatabaseManager(context).apply {
+                    Log.d("MimaDB", "onCreate: hasDatabase=${hasDatabase}, autoUnlock=$autoUnlock, unlocked=$unlocked")
+                    // 修复可能存在的错误 URI 存储（历史遗留问题）
+                    fixInvalidDbUriIfNeeded()
+                }
+            }
+            // isUnlocked 提升到 setContent 顶层作用域，使清除数据对话框的回调也能直接重置它，
+            // 避免 recreate() 因 remember 缓存保留旧实例/旧状态而跳过解锁界面。
+            var isUnlocked by remember { mutableStateOf(dbManager.unlocked) }
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val context = LocalContext.current
-                    val dbManager = remember {
-                        DatabaseManager(context).apply {
-                            Log.d("MimaDB", "onCreate: hasDatabase=${hasDatabase}, autoUnlock=$autoUnlock, unlocked=$unlocked")
-                            // 修复可能存在的错误 URI 存储（历史遗留问题）
-                            fixInvalidDbUriIfNeeded()
-                        }
-                    }
                     // 自动解锁（用户设置项，默认关闭）：
                     // - 无密码密码本：原本就免密，进入即加载（不影响无密码逻辑）。
                     // - 有密码密码本且开启自动解锁：用 CredentialStore 保存的密码自动打开。
-                    var isUnlocked by remember { mutableStateOf(dbManager.unlocked) }
 
                     LaunchedEffect(Unit) {
                         if (!dbManager.unlocked) {
@@ -120,6 +122,7 @@ class MainActivity : FragmentActivity() {
                             dbManager = dbManager,
                             timeoutManager = timeoutManager,
                             credentialStore = credentialStore,
+                            onDataCleared = { isUnlocked = false },
                         )
                     }
                 }
@@ -133,6 +136,7 @@ fun MainScreen(
     dbManager: DatabaseManager,
     timeoutManager: TimeoutManager,
     credentialStore: CredentialStore,
+    onDataCleared: () -> Unit = {},
 ) {
     LaunchedEffect(Unit) {
         // 自动解锁开启，或密码本未设置密码时，超时锁定功能禁用；否则按设置项启用
@@ -255,6 +259,7 @@ fun MainScreen(
                 3 -> SettingsScreen(
                     dbManager = dbManager,
                     credentialStore = credentialStore,
+                    onDataCleared = onDataCleared,
                 )
             }
         }
@@ -738,6 +743,7 @@ fun GenerateScreen(
 fun SettingsScreen(
     dbManager: DatabaseManager,
     credentialStore: CredentialStore,
+    onDataCleared: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -1350,15 +1356,20 @@ fun SettingsScreen(
                     onClick = {
                         showClearDataDialog = false
                         val ok = dbManager.clearAllData()
-                        // 重置内存中的解锁状态与数据库引用，保证重启后是全新状态
+                        // 重置内存中的解锁状态与数据库引用，保证回到全新状态。
+                        // 注意：不要使用 recreate()，因为 dbManager 由 remember 缓存，
+                        // 跨 recreate 仍保留同一实例，且 LaunchedEffect(Unit) 不会重跑，
+                        // 导致 Compose 层的 isUnlocked 状态停留在 true，从而跳过解锁界面。
                         dbManager.lock()
+                        // 通过回调通知 MainActivity 重置 Compose 解锁状态为未解锁，
+                        // 停留在「创建密码本」界面（不可直接 recreate，否则 remember
+                        // 缓存的旧实例/旧状态会导致跳过解锁界面）。
+                        onDataCleared()
                         Toast.makeText(
                             context,
                             if (ok) context.getString(R.string.clear_done) else context.getString(R.string.clear_failed),
                             Toast.LENGTH_SHORT
                         ).show()
-                        // 自动重启 Activity，使用户可重新创建密码本
-                        (context as? android.app.Activity)?.recreate()
                     }
                 ) { Text(stringResource(R.string.clear_all_data), color = Color.Red) }
             },

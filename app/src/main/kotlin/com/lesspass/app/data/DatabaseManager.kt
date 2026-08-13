@@ -24,8 +24,10 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.Security
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 /**
  * 密码本数据库管理器 — 基于 KeePassDX 的 KDBX 引擎。
@@ -40,6 +42,15 @@ import kotlinx.coroutines.withContext
  *   历史记录: URL=site, UserName=login, Password=password, Notes=主密码+长度
  */
 class DatabaseManager(private val context: Context) {
+
+    init {
+        // 确保 BouncyCastle provider 已注册（仅注册一次）。
+        // KeePassDX 的 DatabaseKDBX 构造会调用 KeyGenerator.getInstance("Blowfish")，
+        // 该算法在 Android 16 (API 36) 的 release 构建下系统框架 provider 查找不稳定
+        // （同进程内首次可用、recreate 后可能抛 NoSuchAlgorithmException）。
+        // BouncyCastle 稳定实现 Blowfish，注册后即可被 KeyGenerator.getInstance 命中。
+        ensureBouncyCastleRegistered()
+    }
 
     companion object {
         private const val HISTORY_GROUP_TITLE = "历史记录"
@@ -56,6 +67,23 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
         private const val KEY_CURRENT_DB_FILE = "current_db_file"
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
+
+        @Volatile
+        private var bcRegistered = false
+
+        /** 确保 BouncyCastle provider 已注册到 JVM。只注册一次，不移除已有同名 provider。 */
+        @Synchronized
+        fun ensureBouncyCastleRegistered() {
+            if (bcRegistered) return
+            try {
+                if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+                    Security.addProvider(BouncyCastleProvider())
+                }
+                bcRegistered = true
+            } catch (e: Throwable) {
+                Log.e("MimaDB", "ensureBouncyCastleRegistered failed", e)
+            }
+        }
 
         private fun prefs(context: Context): SharedPreferences =
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
