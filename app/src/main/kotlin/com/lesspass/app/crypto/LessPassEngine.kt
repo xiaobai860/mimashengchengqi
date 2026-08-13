@@ -58,7 +58,7 @@ object LessPassEngine {
                 iterations = 1,
             )
             entropy == "e99e20abab609cc4564ef137acb540de20d9b92dcc5cda58f78ba431444ef2da"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

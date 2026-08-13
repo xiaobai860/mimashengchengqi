@@ -34,7 +34,10 @@ android {
             isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
+                // 用基础 proguard-android.txt（仅混淆+压缩，不做激进优化），
+                // 避免 proguard-android-optimize.txt 的优化破坏
+                // javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256") 的运行时查找。
+                getDefaultProguardFile("proguard-android.txt"),
                 "proguard-rules.pro"
             )
         }
