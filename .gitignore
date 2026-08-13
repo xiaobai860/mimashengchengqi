@@ -23,6 +23,12 @@ local.properties
 .codebuddy/
 
 # Debug / scratch files
+TestPBKDF2.*
+verify_*.py
+*_out.txt
+*_sdk37.log
+build_sdk37.log
+pipeline_out.txt
 _current.apk
 current_apk/
 ui.xml

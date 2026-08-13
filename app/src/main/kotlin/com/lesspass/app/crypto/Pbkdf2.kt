@@ -21,6 +21,6 @@ object Pbkdf2 {
         )
         val factory = SecretKeyFactory.getInstance(ALGORITHM)
         val key = factory.generateSecret(spec).encoded
-        return key.joinToString("") { "%02x".format(it) }
+        return key.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
     }
 }

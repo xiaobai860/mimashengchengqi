@@ -1,6 +1,5 @@
 package com.lesspass.app
 
-import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -14,6 +13,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.MutableState
@@ -65,18 +66,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 
 class MainActivity : FragmentActivity() {
-    // 文件夹选择器的结果通过传统 startActivityForResult + onActivityResult 接收，
-    // 使用固定合法 requestCode，彻底规避 ActivityResultRegistry 累积导致
-    // "Can only use lower 16 bits for requestCode" 崩溃。
-    companion object {
-        const val REQ_MOVE_FOLDER = 1001
-    }
-    private lateinit var moveFolderUri: MutableState<Uri?>
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        moveFolderUri = mutableStateOf(null)
         setContent {
             MaterialTheme {
                 Surface(
@@ -116,8 +108,6 @@ class MainActivity : FragmentActivity() {
                     Log.d("MimaDB", "onCreate state: isUnlocked=$isUnlocked hasDatabase=${dbManager.hasDatabase}")
                     val timeoutManager = remember { TimeoutManager(dbManager, onLock = { isUnlocked = false }) }
                     val credentialStore = remember { CredentialStore(context) }
-                    // 文件夹选择 launcher 已在 Activity.onCreate 用 activityResultRegistry
-                    // 注册一次（见类字段 moveFolderLauncher / moveFolderUri），这里直接使用。
 
                     if (!isUnlocked) {
                         UnlockScreen(
@@ -130,20 +120,10 @@ class MainActivity : FragmentActivity() {
                             dbManager = dbManager,
                             timeoutManager = timeoutManager,
                             credentialStore = credentialStore,
-                            moveFolderUri = moveFolderUri,
                         )
                     }
                 }
             }
-        }
-    }
-
-    // 接收文件夹选择器返回的结果（传统 startActivityForResult，固定合法 requestCode）
-    @Deprecated("Use OnActivityResult instead")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_MOVE_FOLDER && resultCode == Activity.RESULT_OK) {
-            moveFolderUri.value = data?.data
         }
     }
 }
@@ -153,7 +133,6 @@ fun MainScreen(
     dbManager: DatabaseManager,
     timeoutManager: TimeoutManager,
     credentialStore: CredentialStore,
-    moveFolderUri: MutableState<Uri?>,
 ) {
     LaunchedEffect(Unit) {
         // 自动解锁开启，或密码本未设置密码时，超时锁定功能禁用；否则按设置项启用
@@ -276,7 +255,6 @@ fun MainScreen(
                 3 -> SettingsScreen(
                     dbManager = dbManager,
                     credentialStore = credentialStore,
-                    moveFolderUri = moveFolderUri,
                 )
             }
         }
@@ -760,7 +738,6 @@ fun GenerateScreen(
 fun SettingsScreen(
     dbManager: DatabaseManager,
     credentialStore: CredentialStore,
-    moveFolderUri: MutableState<Uri?>,
 ) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -816,13 +793,11 @@ fun SettingsScreen(
         showMigrateConfirmDialog = true
     }
 
-    // 监听 Activity 级文件夹选择器返回的 URI，执行迁移（launcher 已提升到 MainActivity 注册一次）
-    LaunchedEffect(moveFolderUri.value) {
-        val uri = moveFolderUri.value
-        if (uri != null) {
-            moveFolderUri.value = null
-            handleFolderSelected(uri)
-        }
+    // 目标文件夹选择器：使用现代 Activity Result API（替代已弃用的 startActivityForResult）
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) handleFolderSelected(uri)
     }
 
     // 处理迁移操作
@@ -866,8 +841,8 @@ fun SettingsScreen(
         pendingFolderUri = null
     }
 
-    // 选择目标文件夹的 launcher 已提升到 MainActivity 顶层（moveFolderLauncher），
-    // 避免每次进入 SettingsScreen 重复注册 ActivityResultLauncher 导致 requestCode 溢出。
+    // 目标文件夹选择器（folderPickerLauncher）已在 SettingsScreen 内通过
+    // rememberLauncherForActivityResult 注册，作用域限定在 SettingsScreen 组合树内。
 
     Column(
         modifier = Modifier
@@ -928,7 +903,7 @@ fun SettingsScreen(
                                 value = stringResource(R.string.minutes, timeoutMinutes),
                                 onValueChange = {},
                                 readOnly = true,
-                                modifier = Modifier.menuAnchor().width(120.dp),
+                                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable, true).width(120.dp),
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = timeoutExpanded) },
                                 textStyle = MaterialTheme.typography.bodySmall
                             )
@@ -1201,13 +1176,10 @@ fun SettingsScreen(
             Text(if (dbManager.hasPassword) stringResource(R.string.change_kdbx_password) else stringResource(R.string.set_kdbx_password))
         }
 
-        // 修改文件位置（用文件夹选择器，传统 startActivityForResult，固定合法 requestCode）
+        // 修改文件位置（使用现代 Activity Result API 的文件夹选择器）
         OutlinedButton(
             onClick = {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                }
-                (context as MainActivity).startActivityForResult(intent, MainActivity.REQ_MOVE_FOLDER)
+                folderPickerLauncher.launch(null)
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)
@@ -1572,7 +1544,7 @@ private fun KdbxFileEntry(
                 }
             }
         }
-        Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
     }
 }
 

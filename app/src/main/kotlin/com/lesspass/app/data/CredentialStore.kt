@@ -33,7 +33,7 @@ class CredentialStore(private val context: Context) {
     private fun sanitize(vaultId: String): String =
         vaultId.toByteArray().let { bytes ->
             val md = java.security.MessageDigest.getInstance("SHA-256")
-            md.digest(bytes).joinToString("") { "%02x".format(it) }.take(16)
+            md.digest(bytes).joinToString("") { "%02x".format(it.toInt() and 0xFF) }.take(16)
         }
 
     private fun autoAlias(vaultId: String) = "mima_auto_${sanitize(vaultId)}"

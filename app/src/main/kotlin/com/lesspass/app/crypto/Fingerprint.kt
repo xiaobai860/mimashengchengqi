@@ -32,7 +32,7 @@ object Fingerprint {
         val spec = SecretKeySpec(key.toByteArray(), algorithm)
         val mac = Mac.getInstance(algorithm)
         mac.init(spec)
-        return mac.doFinal().joinToString("") { "%02x".format(it) }
+        return mac.doFinal().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
     }
 
     fun create(hmacSHA256: String): List<Finger> {

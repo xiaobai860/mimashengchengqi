@@ -6,15 +6,14 @@ plugins {
 
 android {
     namespace = "com.lesspass.app"
-    compileSdk = 35
-    buildToolsVersion = "35.0.0"
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.lesspass.app"
-        minSdk = 24
-        targetSdk = 35
-        versionCode = 20
-        versionName = "2.9"
+        minSdk = 34
+        targetSdk = 36
+        versionCode = 21
+        versionName = "2.10"
     }
 
     // 签名配置从用户级 ~/.gradle/gradle.properties 读取（密钥库在项目外 E:\Android\paibanrili），
@@ -47,8 +46,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        }
     }
     buildFeatures {
         compose = true
