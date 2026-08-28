@@ -32,7 +32,6 @@
     <string name="tab_vault">Vault</string>
     <string name="tab_settings">Settings</string>
     <!-- Generate screen -->
-    <string name="generate_title">Password Generator</string>
     <string name="password_strength_prefix">Master password strength:</string>
     <string name="password_strength_none">None</string>
     <string name="password_strength_weak">Weak</string>
@@ -55,7 +54,6 @@
     <string name="copy_desc">Copy</string>
     <string name="delete_desc">Delete</string>
     <!-- Vault screen -->
-    <string name="vault_title">Password Book</string>
     <string name="vault_name">Name</string>
     <string name="vault_username">Username</string>
     <string name="vault_password">Password</string>
@@ -67,7 +65,14 @@
     <!-- Unlock screen -->
     <string name="change_password">Change Password</string>
     <!-- Settings screen -->
-    <string name="settings_title">Settings</string>
+    <string name="appearance_settings">Appearance</string>
+    <string name="theme_mode">Theme mode</string>
+    <string name="theme_mode_system">System</string>
+    <string name="theme_mode_light">Light</string>
+    <string name="theme_mode_dark">Dark</string>
+    <string name="dynamic_color">Dynamic color</string>
+    <string name="dynamic_color_summary">Follow the wallpaper to generate theme colors (Material You)</string>
+    <string name="preset_palette">Preset theme colors</string>
     <string name="security_settings">Security Settings</string>
     <string name="timeout_lock_title">Timeout Lock</string>
     <string name="lock_duration">Lock duration</string>
@@ -113,6 +118,7 @@
     <string name="create_vault_title">Create New Password Book</string>
     <string name="create_vault_hint2">An empty password book will be created at the new location</string>
     <string name="file_name_no_ext">File name (without extension)</string>
+    <string name="vault_name_convention_hint">The file name will be prefixed with “password_”; only password books created by this app are listed (so they are recognizable across devices)</string>
     <string name="password_optional">Password (can be left empty for no encryption)</string>
     <string name="confirm_password_label">Confirm Password</string>
     <string name="file_name_empty">File name cannot be empty</string>

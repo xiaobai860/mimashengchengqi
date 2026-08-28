@@ -12,8 +12,8 @@ android {
         applicationId = "com.lesspass.app"
         minSdk = 34
         targetSdk = 36
-        versionCode = 21
-        versionName = "2.10"
+        versionCode = 23
+        versionName = "2.12"
     }
 
     // 签名配置从用户级 ~/.gradle/gradle.properties 读取（密钥库在项目外 E:\Android\paibanrili），
@@ -67,6 +67,17 @@ android {
             excludes += "/META-INF/*.MF"
             excludes += "/META-INF/*.SF"
             excludes += "/META-INF/*.DSA"
+            // 体积优化：剥离 BouncyCastle 未使用子系统的资源文件。
+            // 本应用仅用 BC 的 PBKDF2/Argon2/ChaCha/Salsa20 等具体类（见 Pbkdf2.kt 及
+            // crypto/database 模块），APK 的 dex 中 org.bouncycastle.pqc|pkix|x509|ocsp|openpgp
+            // 引用均为 0，运行时不会加载这些资源，可安全移除。
+            // 回查：若后期 KDBX 打开/证书/PGP 相关功能异常，先确认是否误删资源，
+            // 移除下方对应 exclude 即可回退（无需改代码）。
+            excludes += "/org/bouncycastle/pqc/**"
+            excludes += "/org/bouncycastle/pkix/**"
+            excludes += "/org/bouncycastle/x509/**"
+            excludes += "/org/bouncycastle/ocsp/**"
+            excludes += "/org/bouncycastle/openpgp/**"
         }
     }
 }

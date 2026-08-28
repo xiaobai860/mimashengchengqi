@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_password_gen_background"/>
-    <foreground android:drawable="@drawable/ic_password_gen_foreground"/>
-    <monochrome android:drawable="@drawable/ic_password_gen_mono"/>
+    <!-- 背景：靛蓝渐变（设计稿） -->
+    <background android:drawable="@drawable/ic_launcher_background"/>
+    <!-- 前景：盾牌+钥匙孔（设计稿） -->
+    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+    <!-- MaterialYou 单色剪影 -->
+    <monochrome android:drawable="@drawable/ic_launcher_mono"/>
 </adaptive-icon>

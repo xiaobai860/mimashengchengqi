@@ -32,7 +32,6 @@
     <string name="tab_vault">密码本</string>
     <string name="tab_settings">设置</string>
     <!-- Generate screen -->
-    <string name="generate_title">密码生成</string>
     <string name="password_strength_prefix">主密码强度：</string>
     <string name="password_strength_none">无</string>
     <string name="password_strength_weak">弱</string>
@@ -55,7 +54,6 @@
     <string name="copy_desc">复制</string>
     <string name="delete_desc">删除</string>
     <!-- Vault screen -->
-    <string name="vault_title">密码本</string>
     <string name="vault_name">名称</string>
     <string name="vault_username">用户名</string>
     <string name="vault_password">密码</string>
@@ -67,7 +65,14 @@
     <!-- Unlock screen -->
     <string name="change_password">修改密码</string>
     <!-- Settings screen -->
-    <string name="settings_title">设置</string>
+    <string name="appearance_settings">外观</string>
+    <string name="theme_mode">主题模式</string>
+    <string name="theme_mode_system">跟随系统</string>
+    <string name="theme_mode_light">亮色</string>
+    <string name="theme_mode_dark">暗色</string>
+    <string name="dynamic_color">动态取色</string>
+    <string name="dynamic_color_summary">跟随壁纸自动生成主题色（Material You）</string>
+    <string name="preset_palette">预设主题色</string>
     <string name="security_settings">安全设置</string>
     <string name="timeout_lock_title">超时锁定</string>
     <string name="lock_duration">锁定时长</string>
@@ -113,6 +118,7 @@
     <string name="create_vault_title">创建新密码本</string>
     <string name="create_vault_hint2">将在新位置创建一个空的密码本</string>
     <string name="file_name_no_ext">文件名（不含扩展名）</string>
+    <string name="vault_name_convention_hint">文件名将以 “password_” 开头，仅本应用创建的密码本才会被列出（便于跨手机互传识别）</string>
     <string name="password_optional">密码（可留空，表示无加密）</string>
     <string name="confirm_password_label">确认密码</string>
     <string name="file_name_empty">文件名不能为空</string>

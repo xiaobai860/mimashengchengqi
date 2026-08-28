@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 启动窗口主题：仅负责首帧背景色，深浅色由 Compose 层 MimaTheme 完全接管。
+         不使用 android:Theme.Material.DayNight.NoActionBar：它在纯 Compose（无 AppCompat）
+         项目的 release 资源链接阶段会被 AAPT 报 not found，导致构建失败。
+         改用恒定存在的 android:Theme.Material.Light.NoActionBar，
+         深色模式下的启动背景在 values-night/themes.xml 中单独覆盖。 -->
     <style name="Theme.App" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

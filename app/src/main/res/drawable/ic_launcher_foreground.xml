@@ -1,14 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标前景：盾牌+钥匙孔（设计稿 mima-icon-foreground.svg 的 Android 矢量版）。
+     与顶栏品牌图标 ic_mima_logo 同形，保证应用图标与界面内品牌标识一致。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 盾牌主体：居中，圆润顶 + 圆角底 -->
+    <!-- 盾牌主体：圆润顶 + 圆角底 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,26 C70,26 78,30 78,30 L78,56 C78,70 67,78 54,82 C41,78 30,70 30,56 L30,30 C30,30 38,26 54,26 Z"/>
-    <!-- 钥匙孔：圆形头部 + 竖直槽，居中于盾牌中心 -->
+        android:pathData="M28,22 L80,22 L80,52 C80,68 68,80 54,86 C40,80 28,68 28,52 Z" />
+    <!-- 钥匙孔圆形头部 -->
     <path
-        android:fillColor="#3B6FE0"
-        android:pathData="M54,44 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z M51.8,48.5 h4.4 v14 h-4.4 Z"/>
+        android:fillColor="#4654D6"
+        android:pathData="M54,46 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0 Z" />
+    <!-- 钥匙孔竖直槽 -->
+    <path
+        android:fillColor="#4654D6"
+        android:pathData="M48.5,64 L51,53.5 Q54,51.5 57,53.5 L59.5,64 Z" />
 </vector>

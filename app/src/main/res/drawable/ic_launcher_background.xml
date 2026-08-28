@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标背景：靛蓝渐变（设计稿 mima-icon.svg 的 mimaBg 渐变）。
+     与顶栏品牌图标底色一致。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
             <gradient
                 android:type="linear"
                 android:angle="135"
-                android:startColor="#3B6FE0"
-                android:endColor="#8A4FE8"/>
+                android:startColor="#5C6BF2"
+                android:endColor="#3D4BCC"/>
         </shape>
     </item>
 </layer-list>

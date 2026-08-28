@@ -311,6 +311,41 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 新建密码本后自检：用同一密码独立打开刚写入的文件，确认文件可正常解密。
+     *
+     * 关键性质：自检所用的开库逻辑（空密码传 [MasterCredential] null，与 [openDatabaseByUri]
+     * 完全一致），因此「自检通过」等价于「重新进入应用时 openDatabase 一定能用同一密码打开」。
+     *
+     * 不修改任何实例状态（database / isUnlocked / savedMasterPassword），仅返回是否成功。
+     * 用于避免「has_db 已置为 true，但文件实际损坏/无法打开」导致重新进入应用时停在解锁界面、
+     * 任何密码都提示错误的问题。
+     */
+    private fun verifyVaultOpenable(uri: Uri, password: String): Boolean {
+        return try {
+            val db = DatabaseKDBX()
+            val input = DatabaseInputKDBX(db)
+            val stream = context.contentResolver.openInputStream(uri) ?: return false
+            stream.use {
+                input.openDatabase(
+                    it,
+                    null,
+                    assignMasterKey = {
+                        // 空密码必须传 null 而非空字符串 ""，否则 composite key 与
+                        // KeePassDX 无密码库（SHA256("")）不一致，无法互相打开。
+                        val mc = if (password.isNullOrEmpty()) MasterCredential(null)
+                                 else MasterCredential(password.toCharArray())
+                        db.deriveMasterKey(mc, HardwareKeyNoOp)
+                    }
+                )
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("MimaDB", "verifyVaultOpenable failed for $uri", e)
+            false
+        }
+    }
+
+    /**
      * 集中封装 KDBX 写库逻辑，避免在多处重复构造 DatabaseOutputKDBX 与 writeDatabase 调用。
      * 写库时复用数据库已有的主密钥（空 lambda），不会重新派生。
      */
@@ -372,19 +407,25 @@ class DatabaseManager(private val context: Context) {
             db.deriveMasterKey(mc, HardwareKeyNoOp)
             database = db
             val saved = saveDatabase()
-            if (saved) {
+            // 自检：确认刚写入的本地文件可用同一密码打开；只有自检通过才提交 has_db。
+            // 否则删除损坏文件并回滚，避免重新进入应用时停在解锁界面、任何密码都提示错误。
+            val openable = saved && verifyVaultOpenable(android.net.Uri.fromFile(dbFile), password)
+            if (openable) {
                 isUnlocked = true
                 savedMasterPassword = if (hasPw) password else null
                 setHasPassword(hasPw)
                 setHasDatabase(true)
                 Log.d("MimaDB", "createDatabase: saved=$saved")
             } else {
-                // 保存失败，回滚状态
+                // 保存失败，回滚状态；若文件已写出但损坏，则删除以免残留。
                 database = null
                 isUnlocked = false
-                Log.e("MimaDB", "createDatabase: save failed, rolled back")
+                if (saved) {
+                    try { dbFile.delete() } catch (_: Exception) { }
+                }
+                Log.e("MimaDB", "createDatabase: verification failed, rolled back")
             }
-            saved
+            openable
         } catch (e: Exception) {
             Log.e("MimaDB", "createDatabase failed", e)
             database = null
@@ -750,6 +791,47 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 判断文件名是否为本应用（Mima）创建的密码本。
+     *
+     * 识别规则：
+     *  - 必须是 .kdbx 文件，且文件名以约定前缀 "password_" 开头；
+     *  - 兼容小米等 ROM 上 [DocumentsContract.Document.COLUMN_DISPLAY_NAME] 丢失扩展名的情况：
+     *    若文件名以 "password_" 开头且不含任何 '.'，视为被剥离扩展名的本应用文件，仍识别为密码本。
+     *
+     * 该约定可跨设备识别：其它手机通过 Mima 创建的密码本命名为 "password_<对方机型>.kdbx"，
+     * 同样以 "password_" 开头，因此换手机/互传后也能被正确列出。
+     */
+    private fun isMimaVaultName(name: String?): Boolean {
+        if (name.isNullOrBlank()) return false
+        val lower = name.lowercase()
+        return if (lower.endsWith(".kdbx")) {
+            lower.startsWith("password_")
+        } else {
+            // 扩展名被部分 ROM 剥离的情况：约定前缀且不含任何扩展名分隔符
+            lower.startsWith("password_") && !lower.contains('.')
+        }
+    }
+
+    /**
+     * 规范化用户为密码本输入的文件名，确保最终保存为符合本应用约定的 `password_*.kdbx`。
+     *
+     * 处理步骤：
+     *  - 去除首尾空白与用户可能手填的 .kdbx 扩展名（扩展名由内部统一追加）；
+     *  - 若不以约定前缀 "password_" 开头则自动补齐；
+     *  - 清洗文件名非法字符（仅保留字母数字、下划线、连字符与中文，其余替换为 '_'）；
+     *  - 为空时回退到默认名称 `password_<机型>`。
+     *
+     * @return 不含扩展名的基名（[createNewKdbxInFolder] 会补上 .kdbx）。
+     */
+    fun normalizeVaultName(input: String): String {
+        val raw = input.trim().removeSuffix(".kdbx").removeSuffix(".KDBX")
+        val base = if (raw.isBlank()) defaultKdbxBaseName else raw
+        val prefixed = if (base.startsWith("password_", ignoreCase = true)) base else "password_$base"
+        val cleaned = prefixed.replace(Regex("[^A-Za-z0-9_\\-\\u4e00-\\u9fa5]"), "_")
+        return cleaned.trim('_')
+    }
+
+    /**
      * 将当前选中的文件迁移到新文件夹
      * @param newFolderUri 新文件夹 URI
      * @return Triple<Boolean, String, String> (是否成功, 新文件名, 错误信息)
@@ -864,7 +946,7 @@ class DatabaseManager(private val context: Context) {
      * @param password 密码（可为空表示无加密）
      * @return Triple<Boolean, Uri?, String> (是否成功, 新文件 URI, 错误信息)
      */
-    fun createNewKdbxInFolder(folderUri: Uri, fileName: String = defaultKdbxBaseName, password: String = ""): Triple<Boolean, Uri?, String> {
+    suspend fun createNewKdbxInFolder(folderUri: Uri, fileName: String = defaultKdbxBaseName, password: String = ""): Triple<Boolean, Uri?, String> {
         return try {
             // 清理旧路径
             clearOldPaths(keepExternalUri = false)
@@ -906,8 +988,7 @@ class DatabaseManager(private val context: Context) {
             // 否则 composite key 与 KeePassDX 无密码库不一致，KeePassDX 无法打开。
             val mc = if (password.isNotEmpty()) MasterCredential(password.toCharArray()) else MasterCredential(null)
             db.deriveMasterKey(mc, HardwareKeyNoOp)
-            setHasPassword(password.isNotEmpty())
-            
+
             ensureHistoryGroupExists(db)
             
             // 先设置为当前数据库
@@ -929,7 +1010,25 @@ class DatabaseManager(private val context: Context) {
                 writeKdbx(db, out)
             }
             Log.d("MimaDB", "createNewKdbxInFolder: created ${newFile.uri}")
-            
+
+            // 自检：用同一密码独立重新打开刚写入的文件，确认其可正常解密。
+            // 只有自检通过才提交 has_db / has_password，避免「has_db 已置真但文件损坏」导致
+            // 重新进入应用时停在解锁界面、任何密码都提示错误。自检失败则删除损坏文件并回滚。
+            if (!verifyVaultOpenable(newFile.uri, password)) {
+                Log.e("MimaDB", "createNewKdbxInFolder: verification failed, rolling back")
+                try { newFile.delete() } catch (_: Exception) {}
+                try {
+                    context.contentResolver.releasePersistableUriPermission(
+                        newFile.uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                } catch (_: Exception) { }
+                database = null
+                isUnlocked = false
+                savedMasterPassword = null
+                return Triple(false, null, context.getString(R.string.create_failed_with_reason, "verification failed"))
+            }
+
             // 更新路径配置
             val displayPath = computeDisplayPath(folderUri)
             prefs(context).edit()
@@ -940,6 +1039,7 @@ class DatabaseManager(private val context: Context) {
                 .apply()
             
             updateDisplayPath()
+            setHasPassword(password.isNotEmpty())
             setHasDatabase(true)
             // 关键：同步内存中的打开来源 URI，否则 saveDatabase() 仍会按旧值/ null 落盘，
             // 导致新增/修改条目写回错误位置。
@@ -1209,7 +1309,7 @@ class DatabaseManager(private val context: Context) {
      * 包含：文件名、完整路径、URI（文件 URI）、是否有密码保护
      */
     fun listKdbxFiles(folder: File): List<KdbxFileInfo> {
-        return folder.listFiles { _, name -> name.endsWith(".kdbx", ignoreCase = true) }
+        return folder.listFiles { _, name -> isMimaVaultName(name) }
             ?.mapNotNull { file ->
                 try {
                     val uri = android.net.Uri.fromFile(file)
@@ -1284,10 +1384,13 @@ class DatabaseManager(private val context: Context) {
                     if (name.isNullOrBlank()) name = docFile.name
                     if (name.isNullOrBlank()) name = docId.substringAfterLast('/').substringAfterLast(':')
                     Log.d("MimaDB", "child[$i] docId=$docId name=$name mime=$mime size=$size")
-                    // 仅跳过目录；部分 ROM（如小米）上 .kdbx 文件的 DISPLAY_NAME 会丢失扩展名，
-                    // 因此不再强制 .kdbx 后缀过滤，以避免合法密码本被漏列。
+                    // 仅列出本应用创建的密码本：必须是 .kdbx 且文件名以约定前缀 "password_" 开头。
+                    // 兼容小米等 ROM 上 DISPLAY_NAME 丢失扩展名的情况——isMimaVaultName 内部对
+                    // "password_" 开头且不含扩展名的名称同样识别，因此不会漏列本应用文件，
+                    // 同时避免把目录下其它无关文件（图片/文档等）误列为密码本。
                     if (name.isNullOrBlank()) return@forEachIndexed
                     if (mime == DocumentsContract.Document.MIME_TYPE_DIR) return@forEachIndexed
+                    if (!isMimaVaultName(name)) return@forEachIndexed
                     result.add(
                         KdbxFileInfo(
                             name = name!!,

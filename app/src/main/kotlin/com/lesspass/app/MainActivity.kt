@@ -22,6 +22,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ShareCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,8 +42,10 @@ import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +63,10 @@ import com.lesspass.app.data.TimeoutManager
 import com.lesspass.app.data.PasswordEntry
 import com.lesspass.app.data.DatabaseManager.KdbxFileInfo
 import com.lesspass.app.BuildConfig
+import com.lesspass.app.ui.theme.MimaTheme
+import com.lesspass.app.ui.theme.PresetSeed
+import com.lesspass.app.ui.theme.ThemeMode
+import com.lesspass.app.ui.theme.ThemePrefs
 import com.kunzisoft.keepass.database.element.entry.EntryKDBX
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -81,7 +88,17 @@ class MainActivity : ComponentActivity() {
             // isUnlocked 提升到 setContent 顶层作用域，使清除数据对话框的回调也能直接重置它，
             // 避免 recreate() 因 remember 缓存保留旧实例/旧状态而跳过解锁界面。
             var isUnlocked by remember { mutableStateOf(dbManager.unlocked) }
-            MaterialTheme {
+            // 主题偏好（Material You）：状态提升到顶层，设置页改动即时生效并持久化
+            var themeState by remember { mutableStateOf(ThemePrefs.load(context)) }
+            val onThemeChange: (ThemePrefs.State) -> Unit = { new ->
+                themeState = new
+                ThemePrefs.save(context, new)
+            }
+            MimaTheme(
+                mode = themeState.mode,
+                dynamicColor = themeState.dynamicColor,
+                seed = themeState.seed,
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -123,6 +140,8 @@ class MainActivity : ComponentActivity() {
                             timeoutManager = timeoutManager,
                             credentialStore = credentialStore,
                             onDataCleared = { isUnlocked = false },
+                            themeState = themeState,
+                            onThemeChange = onThemeChange,
                         )
                     }
                 }
@@ -131,12 +150,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     dbManager: DatabaseManager,
     timeoutManager: TimeoutManager,
     credentialStore: CredentialStore,
     onDataCleared: () -> Unit = {},
+    themeState: ThemePrefs.State = ThemePrefs.State(),
+    onThemeChange: (ThemePrefs.State) -> Unit = {},
 ) {
     LaunchedEffect(Unit) {
         // 自动解锁开启，或密码本未设置密码时，超时锁定功能禁用；否则按设置项启用
@@ -199,6 +221,43 @@ fun MainScreen(
     }
 
     Scaffold(
+        topBar = {
+            // 全局顶栏：左上角品牌图标 + 应用名（设计稿定稿「密码生成器」）
+            CenterAlignedTopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(Color(0xFF5C6BF2), Color(0xFF3D4BCC))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_mima_logo),
+                                contentDescription = null,
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
@@ -260,6 +319,8 @@ fun MainScreen(
                     dbManager = dbManager,
                     credentialStore = credentialStore,
                     onDataCleared = onDataCleared,
+                    themeState = themeState,
+                    onThemeChange = onThemeChange,
                 )
             }
         }
@@ -488,14 +549,6 @@ fun GenerateScreen(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
-            text = stringResource(R.string.generate_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 2.dp)
-        )
-
         OutlinedTextField(
             value = site,
             onValueChange = { site = it },
@@ -744,6 +797,8 @@ fun SettingsScreen(
     dbManager: DatabaseManager,
     credentialStore: CredentialStore,
     onDataCleared: () -> Unit = {},
+    themeState: ThemePrefs.State = ThemePrefs.State(),
+    onThemeChange: (ThemePrefs.State) -> Unit = {},
 ) {
     val context = LocalContext.current
     var showChangePasswordDialog by remember { mutableStateOf(false) }
@@ -830,21 +885,29 @@ fun SettingsScreen(
     }
 
     // 处理不迁移操作 - 创建新密码本
-    fun performCreateNew(fileName: String, password: String) {
+    // 文件名不再由用户输入，统一采用本应用约定名 password_<机型>（createNewKdbxInFolder 的默认参数），
+    // 既能保证在本应用文件列表中可识别（仅列出 password_*.kdbx），又便于跨手机互传后识别。
+    fun performCreateNew(password: String) {
         val uri = pendingFolderUri ?: return
-        val result = dbManager.createNewKdbxInFolder(uri, fileName, password)
-        val success = result.first
-        val errorMsg = result.third
-        if (success) {
-            migrationResultMessage = context.getString(R.string.new_vault_created)
-            showMigrationResultDialog = true
-            Toast.makeText(context, migrationResultMessage, Toast.LENGTH_SHORT).show()
-            refreshFileList()
-        } else {
-            moveError = errorMsg.ifBlank { context.getString(R.string.create_failed) }
+        // 创建涉及重型 KDF 派生与 SAF 文件写入，必须在后台线程执行，否则会阻塞 UI 线程触发 ANR，
+        // 甚至被系统在写入中途杀进程，留下 has_db=true 但文件损坏、重新进入后恒提示密码错误的状态。
+        scope.launch(Dispatchers.IO) {
+            val result = dbManager.createNewKdbxInFolder(uri, password = password)
+            val success = result.first
+            val errorMsg = result.third
+            withContext(Dispatchers.Main) {
+                if (success) {
+                    migrationResultMessage = context.getString(R.string.new_vault_created)
+                    showMigrationResultDialog = true
+                    Toast.makeText(context, migrationResultMessage, Toast.LENGTH_SHORT).show()
+                    refreshFileList()
+                } else {
+                    moveError = errorMsg.ifBlank { context.getString(R.string.create_failed) }
+                }
+                showCreateNewDialog = false
+                pendingFolderUri = null
+            }
         }
-        showCreateNewDialog = false
-        pendingFolderUri = null
     }
 
     // 目标文件夹选择器（folderPickerLauncher）已在 SettingsScreen 内通过
@@ -857,7 +920,91 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge)
+        // ==================== 外观（Material You 动态取色） ====================
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            tonalElevation = 1.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(stringResource(R.string.appearance_settings), style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+
+                // 主题模式：跟随系统 / 亮色 / 暗色
+                Text(stringResource(R.string.theme_mode), style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        ThemeMode.SYSTEM to stringResource(R.string.theme_mode_system),
+                        ThemeMode.LIGHT to stringResource(R.string.theme_mode_light),
+                        ThemeMode.DARK to stringResource(R.string.theme_mode_dark),
+                    ).forEach { (mode, label) ->
+                        FilterChip(
+                            selected = themeState.mode == mode,
+                            onClick = { onThemeChange(themeState.copy(mode = mode)) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+
+                // 动态取色开关
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.dynamic_color), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.dynamic_color_summary),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = themeState.dynamicColor,
+                        onCheckedChange = { on ->
+                            onThemeChange(themeState.copy(dynamicColor = on))
+                        }
+                    )
+                }
+
+                // 预设种子色板（动态取色关闭时生效）
+                if (!themeState.dynamicColor) {
+                    Text(
+                        stringResource(R.string.preset_palette),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        PresetSeed.entries.forEach { preset ->
+                            val selected = themeState.seed == preset
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color(preset.argb))
+                                    .border(
+                                        width = if (selected) 3.dp else 0.dp,
+                                        color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                        shape = RoundedCornerShape(20.dp)
+                                    )
+                                    .clickable { onThemeChange(themeState.copy(seed = preset)) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (selected) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = preset.label,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // ==================== 安全设置 ====================
         Surface(
@@ -1314,8 +1461,8 @@ fun SettingsScreen(
                 showCreateNewDialog = false
                 pendingFolderUri = null
             },
-            onConfirm = { fileName, password ->
-                performCreateNew(fileName, password)
+            onConfirm = { password ->
+                performCreateNew(password)
             }
         )
     }
@@ -1380,14 +1527,13 @@ fun SettingsScreen(
     }
 }
 
-/** 创建新密码本对话框 */
+/** 创建新密码本对话框（文件名由系统按约定自动生成，不向用户暴露） */
 @Composable
 private fun CreateNewDatabaseDialog(
     dbManager: DatabaseManager,
     onDismiss: () -> Unit,
-    onConfirm: (fileName: String, password: String) -> Unit
+    onConfirm: (password: String) -> Unit
 ) {
-    var fileName by remember { mutableStateOf(dbManager.defaultKdbxName.removeSuffix(".kdbx")) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -1399,12 +1545,10 @@ private fun CreateNewDatabaseDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(stringResource(R.string.create_vault_hint2), style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(
-                    value = fileName,
-                    onValueChange = { fileName = it },
-                    label = { Text(stringResource(R.string.file_name_no_ext)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                Text(
+                    stringResource(R.string.vault_name_convention_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = password,
@@ -1432,15 +1576,11 @@ private fun CreateNewDatabaseDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (fileName.isBlank()) {
-                        errorMessage = context.getString(R.string.file_name_empty)
-                        return@TextButton
-                    }
                     if (password != confirmPassword) {
                         errorMessage = context.getString(R.string.passwords_mismatch)
                         return@TextButton
                     }
-                    onConfirm(fileName, password)
+                    onConfirm(password)
                 }
             ) { Text(stringResource(R.string.create_action)) }
         },
