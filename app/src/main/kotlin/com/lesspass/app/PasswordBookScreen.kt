@@ -9,10 +9,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -28,7 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kunzisoft.keepass.database.element.entry.EntryKDBX
 import com.lesspass.app.data.DatabaseManager
 import com.lesspass.app.data.PasswordEntry
@@ -53,24 +57,25 @@ fun PasswordBookScreen(
         reload()
     }
 
+    // 用 Box 而非 Scaffold：本页已嵌在 MainScreen 的 Scaffold 内，
+    // 再套一层 Scaffold 会重复应用系统栏 inset，导致顶部出现多余空白（与其他页面高度不一致）。
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            FilledTonalButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.add_manually))
-            }
-        }
-
-        // 搜索框：按网站(url)或用户名(username)或标题(title)过滤
+        // 设计稿 v4：搜索框为 surface-variant 胶囊（全圆角）
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .height(52.dp),
+            shape = RoundedCornerShape(26.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
+            ),
             placeholder = { Text(stringResource(R.string.search_vault_hint)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             singleLine = true
@@ -88,11 +93,28 @@ fun PasswordBookScreen(
         }
 
         if (entries.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            // 设计稿 .empty：大图标 + 引导文案
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Text(stringResource(R.string.vault_empty_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.vault_empty_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 24.sp
+                )
             }
         } else if (filtered.isEmpty()) {
             Box(
@@ -103,8 +125,8 @@ fun PasswordBookScreen(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filtered, key = { it.id.toString() }) { entry ->
                     PasswordBookCard(
@@ -124,6 +146,19 @@ fun PasswordBookScreen(
                     )
                 }
             }
+        }
+    }
+
+        // 设计稿 .fab：右下角悬浮 ＋ 承担「创建新条目」入口（Box 内绝对定位，不引入额外 inset）
+        FloatingActionButton(
+            onClick = { showAddDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_manually))
         }
     }
 

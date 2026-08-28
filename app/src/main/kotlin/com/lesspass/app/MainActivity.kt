@@ -13,10 +13,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.MutableState
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ShareCompat
@@ -72,7 +70,47 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 
-class MainActivity : ComponentActivity() {
+/**
+ * 继承 FragmentActivity：biometric 1.1.0 的 BiometricPrompt 只接受 FragmentActivity 宿主，
+ * 指纹设置/解锁依赖它（用 ComponentActivity 时 `context as? FragmentActivity` 恒为 null，
+ * 会误报「请先解锁密码本」且指纹永不生效）。
+ *
+ * ⚠️ 代价：FragmentActivity.startActivityForResult 强制 requestCode 只能用低 16 位，
+ * 而 Activity Result API 内部生成的 requestCode 从 0x00010000 起，会抛
+ * IllegalArgumentException（Can only use lower 16 bits for requestCode）。
+ * 因此 SAF 文件夹选择器不使用 rememberLauncherForActivityResult，
+ * 改用 startActivityForResult + 低位 requestCode（见 REQ_PICK_FOLDER）。
+ */
+class MainActivity : FragmentActivity() {
+
+    /** SAF 文件夹选择器请求码：必须 < 0x10000（FragmentActivity 只放行低 16 位）。 */
+    private val REQ_PICK_FOLDER = 0x0001
+
+    private var pendingFolderCallback: ((Uri?) -> Unit)? = null
+
+    /**
+     * 启动 SAF 文件夹选择器，结果通过 [onResult] 回传。
+     * 使用低位 requestCode 以符合 FragmentActivity 的 16 位限制。
+     */
+    fun pickFolder(onResult: (Uri?) -> Unit) {
+        pendingFolderCallback = onResult
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, REQ_PICK_FOLDER)
+    }
+
+    @Deprecated("使用传统 onActivityResult 以规避 FragmentActivity 的 requestCode 16 位限制")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_PICK_FOLDER) {
+            val uri = if (resultCode == RESULT_OK) data?.data else null
+            pendingFolderCallback?.invoke(uri)
+            pendingFolderCallback = null
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -220,44 +258,9 @@ fun MainScreen(
         }
     }
 
+    // 无应用级顶栏：各页面直接以内容标题开头（生成页的「生成密码」大标题即首元素），
+    // 视觉更干净，避免与底部四标签栏形成双层导航。
     Scaffold(
-        topBar = {
-            // 全局顶栏：左上角品牌图标 + 应用名（设计稿定稿「密码生成器」）
-            CenterAlignedTopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFF5C6BF2), Color(0xFF3D4BCC))
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_mima_logo),
-                                contentDescription = null,
-                                tint = Color.Unspecified,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
@@ -549,6 +552,19 @@ fun GenerateScreen(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // 设计稿 v4：屏幕顶部语义大标题 + 副标题说明
+        Text(
+            text = stringResource(R.string.generate_hero_title),
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+        )
+        Text(
+            text = stringResource(R.string.generate_hero_sub),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
         OutlinedTextField(
             value = site,
             onValueChange = { site = it },
@@ -622,51 +638,73 @@ fun GenerateScreen(
             )
         }
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                OptionItem(stringResource(R.string.lowercase), lowercase) { lowercase = it }
-                OptionItem(stringResource(R.string.uppercase), uppercase) { uppercase = it }
-                OptionItem(stringResource(R.string.digits), digits) { digits = it }
-                OptionItem(stringResource(R.string.symbols), symbols) { symbols = it }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = excludeAmbiguous, onCheckedChange = { excludeAmbiguous = it })
-                Text(
-                    text = stringResource(R.string.exclude_ambiguous),
-                    fontSize = 14.sp,
-                )
-            }
-            Text(
-                text = stringResource(R.string.exclude_ambiguous_warning),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 52.dp, top = 2.dp, end = 8.dp)
-            )
-        }
-
-        Row(
+        // 设计稿 v4：字符集与长度/计数器归入同一张卡片（圆角 12dp + 卡片底色 + 分割线），
+        // 取代原先平铺散落的控件，降低信息密度压力。
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp
         ) {
-            CounterStepper(
-                label = stringResource(R.string.length),
-                value = length,
-                onValueChange = { length = it.coerceIn(4, 64) },
-                modifier = Modifier.weight(1f)
-            )
-            CounterStepper(
-                label = stringResource(R.string.counter),
-                value = counter,
-                onValueChange = { counter = it.coerceAtLeast(1) },
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = stringResource(R.string.section_options),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    OptionItem(stringResource(R.string.lowercase), lowercase) { lowercase = it }
+                    OptionItem(stringResource(R.string.uppercase), uppercase) { uppercase = it }
+                    OptionItem(stringResource(R.string.digits), digits) { digits = it }
+                    OptionItem(stringResource(R.string.symbols), symbols) { symbols = it }
+                }
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(checked = excludeAmbiguous, onCheckedChange = { excludeAmbiguous = it })
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.exclude_ambiguous),
+                            fontSize = 14.sp,
+                        )
+                        Text(
+                            text = stringResource(R.string.exclude_ambiguous_warning),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CounterStepper(
+                        label = stringResource(R.string.length),
+                        value = length,
+                        onValueChange = { length = it.coerceIn(4, 64) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    CounterStepper(
+                        label = stringResource(R.string.counter),
+                        value = counter,
+                        onValueChange = { counter = it.coerceAtLeast(1) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
 
         Button(
@@ -704,7 +742,7 @@ fun GenerateScreen(
             },
             enabled = algorithmSupported,
             modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(4.dp)
+            shape = RoundedCornerShape(8.dp)
         ) {
             Icon(Icons.Filled.Settings, contentDescription = null)
             Spacer(Modifier.width(8.dp))
@@ -734,7 +772,8 @@ fun GenerateScreen(
                 SecondaryActionButton(
                     icon = Icons.Filled.Storage,
                     text = stringResource(R.string.save),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    tonal = true
                 ) {
                     if (dbManager.unlocked) {
                         onSave(site, login, password!!, masterPassword, counter)
@@ -753,19 +792,23 @@ fun GenerateScreen(
         }
 
         if (password != null) {
-            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = password!!,
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            textAlign = TextAlign.Center
-                        )
-                    )
-                }
+            // 设计稿 .pw-card：surface-variant 底色 + 圆角 12dp + 等宽字体，居中展示生成结果
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Text(
+                    text = password!!,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.Center
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                )
             }
 
             // 生成密码的强度显示
@@ -854,11 +897,16 @@ fun SettingsScreen(
         showMigrateConfirmDialog = true
     }
 
-    // 目标文件夹选择器：使用现代 Activity Result API（替代已弃用的 startActivityForResult）
-    val folderPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) handleFolderSelected(uri)
+    // 目标文件夹选择器：
+    // 不用 rememberLauncherForActivityResult —— 宿主是 FragmentActivity 时，
+    // Activity Result API 生成的 requestCode 高 16 位非零会触发
+    // IllegalArgumentException（Can only use lower 16 bits for requestCode）导致闪退。
+    // 改用 Activity 的 pickFolder()：内部以低位 requestCode 启动选择器，
+    // 结果经 onActivityResult 回传给 onResult 回调。
+    fun launchFolderPicker() {
+        (context as? MainActivity)?.pickFolder { uri ->
+            if (uri != null) handleFolderSelected(uri)
+        }
     }
 
     // 处理迁移操作
@@ -910,9 +958,6 @@ fun SettingsScreen(
         }
     }
 
-    // 目标文件夹选择器（folderPickerLauncher）已在 SettingsScreen 内通过
-    // rememberLauncherForActivityResult 注册，作用域限定在 SettingsScreen 组合树内。
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -923,12 +968,17 @@ fun SettingsScreen(
         // ==================== 外观（Material You 动态取色） ====================
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(12.dp),
             tonalElevation = 1.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.appearance_settings), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
+            Column(modifier = Modifier.padding(14.dp)) {
+                // 设计稿 .sec-title：区块小标题用弱化 labelMedium
+                Text(
+                    stringResource(R.string.appearance_settings),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(10.dp))
 
                 // 主题模式：跟随系统 / 亮色 / 暗色
                 Text(stringResource(R.string.theme_mode), style = MaterialTheme.typography.bodyMedium)
@@ -1009,12 +1059,16 @@ fun SettingsScreen(
         // ==================== 安全设置 ====================
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(12.dp),
             tonalElevation = 1.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.security_settings), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    stringResource(R.string.security_settings),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(10.dp))
 
                 // 超时锁定
                 Row(
@@ -1150,7 +1204,7 @@ fun SettingsScreen(
                         Button(
                             enabled = dbManager.unlocked && dbManager.hasPassword && CredentialStore.isBiometricAvailable(context),
                             onClick = {
-                                val activity = context as? androidx.fragment.app.FragmentActivity
+                                val activity = context as? FragmentActivity
                                 if (activity == null || !dbManager.unlocked) {
                                     fpSnackbar = context.getString(R.string.unlock_vault_first_fingerprint)
                                     return@Button
@@ -1191,17 +1245,21 @@ fun SettingsScreen(
         // ==================== 密码本状态（整合文件列表） ====================
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(12.dp),
             tonalElevation = 1.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 // 标题行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.vault_status), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        stringResource(R.string.vault_status),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     TextButton(
                         onClick = { refreshFileList() },
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
@@ -1329,10 +1387,10 @@ fun SettingsScreen(
             Text(if (dbManager.hasPassword) stringResource(R.string.change_kdbx_password) else stringResource(R.string.set_kdbx_password))
         }
 
-        // 修改文件位置（使用现代 Activity Result API 的文件夹选择器）
+        // 修改文件位置（自定义文件夹选择器，规避 FragmentActivity 的 requestCode 16 位限制）
         OutlinedButton(
             onClick = {
-                folderPickerLauncher.launch(null)
+                launchFolderPicker()
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(4.dp)
@@ -1913,21 +1971,38 @@ private fun CounterStepper(
     }
 }
 
+/**
+ * 次级操作按钮。
+ * @param tonal 为 true 时使用设计稿 .btn.tonal 样式（secondary-container 填充），
+ *              用于「保存到密码本」等强调但仍次于主按钮的操作。
+ */
 @Composable
 private fun SecondaryActionButton(
     icon: ImageVector,
     text: String,
     modifier: Modifier = Modifier,
+    tonal: Boolean = false,
     onClick: () -> Unit,
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(4.dp)
-    ) {
+    val label: @Composable () -> Unit = {
         Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(4.dp))
         Text(text)
+    }
+    if (tonal) {
+        FilledTonalButton(
+            onClick = onClick,
+            modifier = modifier.height(48.dp),
+            shape = RoundedCornerShape(8.dp),
+            content = { label() }
+        )
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier.height(48.dp),
+            shape = RoundedCornerShape(8.dp),
+            content = { label() }
+        )
     }
 }
 

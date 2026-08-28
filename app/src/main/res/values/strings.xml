@@ -32,6 +32,9 @@
     <string name="tab_vault">Vault</string>
     <string name="tab_settings">Settings</string>
     <!-- Generate screen -->
+    <string name="generate_hero_title">Generate Password</string>
+    <string name="generate_hero_sub">Based on the LessPass deterministic algorithm: the same input always yields the same password, so the password itself never needs to be stored.</string>
+    <string name="section_options">Character Sets</string>
     <string name="password_strength_prefix">Master password strength:</string>
     <string name="password_strength_none">None</string>
     <string name="password_strength_weak">Weak</string>
@@ -168,7 +171,7 @@
     <string name="biometric_unlock_not_set">Fingerprint Unlock (not set)</string>
     <string name="unlock_failed_retry">Unlock failed, please retry or use password</string>
     <string name="fingerprint_not_set_hint">Fingerprint unlock not set, please enable it in Settings first</string>
-    <string name="vault_empty_hint">Password book is empty; generate a password and tap Save to add it</string>
+    <string name="vault_empty_hint">Password book is empty\nGenerate a password and tap Save, or use the ＋ button to add one.</string>
     <string name="add_manually">Add Manually</string>
     <string name="master_password_prefix">Master password: %1$s</string>
     <string name="export_kdbx_dialog">Export KDBX File</string>

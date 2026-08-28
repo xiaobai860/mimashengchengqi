@@ -1431,6 +1431,11 @@ class DatabaseManager(private val context: Context) {
         database = null
         isUnlocked = false
         savedMasterPassword = null
+        // 必须一并清空当前打开来源：saveDatabase() 依据 currentOpenUri 决定落盘目标
+        // （非 null 时写回 URI，否则写本地 dbFile）。若清除数据/锁定后残留旧的外部 URI，
+        // 后续 createDatabase() 会把新库写到该失效 URI，而自检却读本地 dbFile，
+        // 两者不一致导致自检失败、界面提示「创建失败」。
+        currentOpenUri = null
     }
 
     /** 重置自动解锁状态（用于设置页面重置密码本） */
@@ -1468,6 +1473,13 @@ class DatabaseManager(private val context: Context) {
             }
             // 彻底清空应用偏好设置（含所有密码本位置与加密标记），不保留任何指向旧密码本的引用。
             prefs(context).edit().clear().apply()
+            // 同步重置内存态（不依赖调用方是否另行调用 lock()）：
+            // 尤其是 currentOpenUri，它决定 saveDatabase() 的落盘目标，
+            // 残留旧值会让「清除数据后新建密码本」写到失效 URI 而自检读本地文件 → 创建失败。
+            database = null
+            isUnlocked = false
+            savedMasterPassword = null
+            currentOpenUri = null
             // 同时清除密码生成界面的独立 SharedPreferences（含生成密码用的主密码等设置）
             context.getSharedPreferences("generate_prefs", Context.MODE_PRIVATE).edit().clear().apply()
             // 删除缓存目录中的临时文件
