@@ -120,11 +120,9 @@
     <string name="create_new_vault_action">创建新密码本</string>
     <string name="create_vault_title">创建新密码本</string>
     <string name="create_vault_hint2">将在新位置创建一个空的密码本</string>
-    <string name="file_name_no_ext">文件名（不含扩展名）</string>
-    <string name="vault_name_convention_hint">文件名将以 “password_” 开头，仅本应用创建的密码本才会被列出（便于跨手机互传识别）</string>
+    <string name="vault_name_convention_hint">文件名将以 “mm_” 开头，仅本应用创建的密码本才会被列出（便于跨手机互传识别）</string>
     <string name="password_optional">密码（可留空，表示无加密）</string>
     <string name="confirm_password_label">确认密码</string>
-    <string name="file_name_empty">文件名不能为空</string>
     <string name="passwords_mismatch">两次输入的密码不一致</string>
     <string name="create_action">创建</string>
     <string name="input_vault_password_title">输入密码本密码</string>

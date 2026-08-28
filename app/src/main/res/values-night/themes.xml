@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色模式启动窗口主题：覆盖 values/themes.xml 中的浅色启动背景，
+         避免深色系统下启动瞬间闪白。 -->
+    <style name="Theme.App" parent="android:Theme.Material.NoActionBar" />
+</resources>

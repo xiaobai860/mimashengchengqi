@@ -98,11 +98,18 @@ class DatabaseManager(private val context: Context) {
             return if (raw.isBlank()) "device" else raw
         }
 
-    private val defaultDbFile: File
-        get() = File(context.filesDir, "password_$deviceTag.kdbx")
+    /**
+     * 本应用密码本的文件名前缀。
+     * 命名为 `mm_<机型>.kdbx`：仅列出该前缀的文件，便于跨设备互传后识别，
+     * 也避免把目录下无关文件（图片/文档等）误列为密码本。
+     */
+    private val VAULT_PREFIX = "mm_"
 
-    /** 默认密码本基础名（不含扩展名），如 password_RedmiK50 */
-    private val defaultKdbxBaseName: String get() = "password_$deviceTag"
+    private val defaultDbFile: File
+        get() = File(context.filesDir, "$VAULT_PREFIX$deviceTag.kdbx")
+
+    /** 默认密码本基础名（不含扩展名），如 mm_RedmiK50 */
+    private val defaultKdbxBaseName: String get() = "$VAULT_PREFIX$deviceTag"
 
     /** 优先使用 URI（从文件选择器选取），否则回退到文件路径 */
     private val dbUri: Uri?
@@ -791,42 +798,57 @@ class DatabaseManager(private val context: Context) {
     }
 
     /**
+     * 历史遗留前缀：早期版本使用 `password_`。
+     * 仅用于**识别**旧文件（保证老用户的密码本仍能被列出、打开），
+     * 新建/改名一律使用 [VAULT_PREFIX]（mm_）。
+     */
+    private val LEGACY_VAULT_PREFIX = "password_"
+
+    /**
      * 判断文件名是否为本应用（Mima）创建的密码本。
      *
      * 识别规则：
-     *  - 必须是 .kdbx 文件，且文件名以约定前缀 "password_" 开头；
+     *  - 必须是 .kdbx 文件，且文件名以约定前缀 "mm_" 开头；
      *  - 兼容小米等 ROM 上 [DocumentsContract.Document.COLUMN_DISPLAY_NAME] 丢失扩展名的情况：
-     *    若文件名以 "password_" 开头且不含任何 '.'，视为被剥离扩展名的本应用文件，仍识别为密码本。
+     *    若文件名以约定前缀开头且不含任何 '.'，视为被剥离扩展名的本应用文件，仍识别为密码本。
+     *  - 同时识别历史遗留的 `password_` 前缀文件（只读兼容，避免老用户密码本凭空消失）。
      *
-     * 该约定可跨设备识别：其它手机通过 Mima 创建的密码本命名为 "password_<对方机型>.kdbx"，
-     * 同样以 "password_" 开头，因此换手机/互传后也能被正确列出。
+     * 该约定可跨设备识别：其它手机通过 Mima 创建的密码本命名为 "mm_<对方机型>.kdbx"，
+     * 因此换手机/互传后也能被正确列出。
      */
     private fun isMimaVaultName(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
         val lower = name.lowercase()
+        val hasPrefix = lower.startsWith(VAULT_PREFIX) || lower.startsWith(LEGACY_VAULT_PREFIX)
         return if (lower.endsWith(".kdbx")) {
-            lower.startsWith("password_")
+            hasPrefix
         } else {
             // 扩展名被部分 ROM 剥离的情况：约定前缀且不含任何扩展名分隔符
-            lower.startsWith("password_") && !lower.contains('.')
+            hasPrefix && !lower.contains('.')
         }
     }
 
     /**
-     * 规范化用户为密码本输入的文件名，确保最终保存为符合本应用约定的 `password_*.kdbx`。
+     * 规范化用户为密码本输入的文件名，确保最终保存为符合本应用约定的 `mm_*.kdbx`。
      *
      * 处理步骤：
      *  - 去除首尾空白与用户可能手填的 .kdbx 扩展名（扩展名由内部统一追加）；
-     *  - 若不以约定前缀 "password_" 开头则自动补齐；
+     *  - 若以历史前缀 `password_` 开头，改写为 `mm_`（迁移到新约定）；
+     *    其它名称则统一补齐 `mm_` 前缀；
      *  - 清洗文件名非法字符（仅保留字母数字、下划线、连字符与中文，其余替换为 '_'）；
-     *  - 为空时回退到默认名称 `password_<机型>`。
+     *  - 为空时回退到默认名称 `mm_<机型>`。
      *
      * @return 不含扩展名的基名（[createNewKdbxInFolder] 会补上 .kdbx）。
      */
     fun normalizeVaultName(input: String): String {
         val raw = input.trim().removeSuffix(".kdbx").removeSuffix(".KDBX")
         val base = if (raw.isBlank()) defaultKdbxBaseName else raw
-        val prefixed = if (base.startsWith("password_", ignoreCase = true)) base else "password_$base"
+        val prefixed = when {
+            base.startsWith(VAULT_PREFIX, ignoreCase = true) -> base
+            base.startsWith(LEGACY_VAULT_PREFIX, ignoreCase = true) ->
+                VAULT_PREFIX + base.removePrefix(LEGACY_VAULT_PREFIX)
+            else -> "$VAULT_PREFIX$base"
+        }
         val cleaned = prefixed.replace(Regex("[^A-Za-z0-9_\\-\\u4e00-\\u9fa5]"), "_")
         return cleaned.trim('_')
     }

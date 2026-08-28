@@ -120,11 +120,9 @@
     <string name="create_new_vault_action">Create New Password Book</string>
     <string name="create_vault_title">Create New Password Book</string>
     <string name="create_vault_hint2">An empty password book will be created at the new location</string>
-    <string name="file_name_no_ext">File name (without extension)</string>
-    <string name="vault_name_convention_hint">The file name will be prefixed with “password_”; only password books created by this app are listed (so they are recognizable across devices)</string>
+    <string name="vault_name_convention_hint">The file name will be prefixed with “mm_”; only password books created by this app are listed (so they are recognizable across devices)</string>
     <string name="password_optional">Password (can be left empty for no encryption)</string>
     <string name="confirm_password_label">Confirm Password</string>
-    <string name="file_name_empty">File name cannot be empty</string>
     <string name="passwords_mismatch">The two passwords do not match</string>
     <string name="create_action">Create</string>
     <string name="input_vault_password_title">Enter Password Book Password</string>

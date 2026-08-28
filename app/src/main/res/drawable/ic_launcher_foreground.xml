@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 自适应图标前景：盾牌+钥匙孔（设计稿 mima-icon-foreground.svg 的 Android 矢量版）。
-     与顶栏品牌图标 ic_mima_logo 同形，保证应用图标与界面内品牌标识一致。 -->
+<!-- 自适应图标前景：盾牌+钥匙孔（设计稿 mima-icon-foreground.svg 的 Android 矢量版）。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

@@ -19,8 +19,10 @@ build/
 .idea/
 local.properties
 
-# CodeBuddy working memory (local only, do not commit)
+# AI assistant working memory / local tool dirs (local only, do not commit)
 .codebuddy/
+.workbuddy/
+.trae/
 
 # Debug / scratch files
 TestPBKDF2.*

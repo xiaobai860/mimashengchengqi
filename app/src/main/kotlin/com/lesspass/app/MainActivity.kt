@@ -40,10 +40,8 @@ import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -933,8 +931,8 @@ fun SettingsScreen(
     }
 
     // 处理不迁移操作 - 创建新密码本
-    // 文件名不再由用户输入，统一采用本应用约定名 password_<机型>（createNewKdbxInFolder 的默认参数），
-    // 既能保证在本应用文件列表中可识别（仅列出 password_*.kdbx），又便于跨手机互传后识别。
+    // 文件名不再由用户输入，统一采用本应用约定名 mm_<机型>（createNewKdbxInFolder 的默认参数），
+    // 既能保证在本应用文件列表中可识别（仅列出 mm_*.kdbx），又便于跨手机互传后识别。
     fun performCreateNew(password: String) {
         val uri = pendingFolderUri ?: return
         // 创建涉及重型 KDF 派生与 SAF 文件写入，必须在后台线程执行，否则会阻塞 UI 线程触发 ANR，
