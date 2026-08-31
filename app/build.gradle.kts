@@ -34,10 +34,12 @@ android {
             isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
-                // 用基础 proguard-android.txt（仅混淆+压缩，不做激进优化），
-                // 避免 proguard-android-optimize.txt 的优化破坏
-                // javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256") 的运行时查找。
-                getDefaultProguardFile("proguard-android.txt"),
+                // AGP 8.11 起强制要求 proguard-android-optimize.txt
+                // （proguard-android.txt 因含 -dontoptimize 被弃用/拒绝）。
+                // ⚠️ 曾为规避 SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256") 的 release
+                // NoSuchAlgorithmException 而用非 optimize 配置；现已改用 BouncyCastle
+                // PKCS5S2ParametersGenerator 实现 PBKDF2，不再依赖该 SPI 查找，可安全启用 optimize。
+                getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }

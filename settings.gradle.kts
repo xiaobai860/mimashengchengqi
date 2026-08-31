@@ -18,7 +18,7 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Mima"
+rootProject.name = "密码生成器"
 include(":app")
 include(":crypto")
 include(":database")

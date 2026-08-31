@@ -1,6 +1,8 @@
 [versions]
-agp = "8.9.2"
-kotlin = "2.1.21"
+# AGP 8.11.x：官方最大支持 compileSdk 36（本项目用 36），
+# 最低 Gradle 8.13 / JDK 17 / Build Tools 35（均已满足）。
+agp = "9.3.0"
+kotlin = "2.2.10"
 coreKtx = "1.15.0"
 documentfile = "1.1.0"
 lifecycleRuntimeKtx = "2.8.7"

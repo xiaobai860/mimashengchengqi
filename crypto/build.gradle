@@ -9,7 +9,6 @@ android {
 
     defaultConfig {
         minSdk 34
-        targetSdk 36
     }
 
     buildTypes {
@@ -33,6 +32,12 @@ android {
         resources {
             pickFirsts += 'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
         }
+    }
+    lint {
+        targetSdk 36
+    }
+    testOptions {
+        targetSdk 36
     }
 }
 

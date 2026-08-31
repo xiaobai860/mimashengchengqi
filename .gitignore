@@ -13,6 +13,8 @@ gradle-local.properties
 app/build/
 build/
 .kotlin/
+# AGP 打包产物输出（apk / output-metadata / baselineProfiles）
+app/release/
 
 # IDE
 *.iml
