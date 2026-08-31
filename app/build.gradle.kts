@@ -69,6 +69,8 @@ android {
             excludes += "/META-INF/*.MF"
             excludes += "/META-INF/*.SF"
             excludes += "/META-INF/*.DSA"
+            // 剔除 Kotlin 协程的 debug-only 调试探针（release 不应携带；AGP 8.11 未默认移除）
+            excludes += "/DebugProbesKt.bin"
             // 体积优化：剥离 BouncyCastle 未使用子系统的资源文件。
             // 本应用仅用 BC 的 PBKDF2/Argon2/ChaCha/Salsa20 等具体类（见 Pbkdf2.kt 及
             // crypto/database 模块），APK 的 dex 中 org.bouncycastle.pqc|pkix|x509|ocsp|openpgp
