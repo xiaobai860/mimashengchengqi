@@ -1,6 +1,8 @@
+// ⚠️ AGP 9 起 Kotlin 由插件内置提供（KGP 2.2.10），不可再声明
+// org.jetbrains.kotlin.android，否则报 "Cannot add extension with name 'kotlin'"。
+// 需要更高版本 KGP 时改在根 build.gradle.kts 的 buildscript classpath 里声明。
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -51,11 +53,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlin {
-        compilerOptions {
-            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-        }
-    }
+    // JVM 目标版本由内置 Kotlin 自动对齐 compileOptions.targetCompatibility(17)，无需再设置。
     buildFeatures {
         compose = true
         buildConfig = true

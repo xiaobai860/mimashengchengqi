@@ -1,32 +1,27 @@
+// ⚠️ 不再使用 kotlin-parcelize：AGP 9 新 DSL 下该编译插件不生效
+// （KGP 的 ParcelizeSubplugin 要求 android 扩展仍是旧 BaseExtension），
+// 本模块的 Parcelable 已全部改为手写实现。
 plugins {
     id 'com.android.library'
-    alias libs.plugins.kotlin.android
-    alias libs.plugins.kotlin.parcelize
 }
 
 android {
-    namespace 'com.kunzisoft.keepass.database'
-    compileSdk 36
+    namespace = 'com.kunzisoft.keepass.database'
+    compileSdk = 36
 
     defaultConfig {
-        minSdk 34
+        minSdk = 34
     }
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled = false
         }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    kotlin {
-        compilerOptions {
-            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-        }
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     packaging {
@@ -35,10 +30,10 @@ android {
         }
     }
     lint {
-        targetSdk 36
+        targetSdk = 36
     }
     testOptions {
-        targetSdk 36
+        targetSdk = 36
     }
 }
 

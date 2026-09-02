@@ -1,6 +1,6 @@
 [versions]
-# AGP 8.11.x：官方最大支持 compileSdk 36（本项目用 36），
-# 最低 Gradle 8.13 / JDK 17 / Build Tools 35（均已满足）。
+# AGP 9.x：新 DSL + 内置 Kotlin（KGP 2.2.10）为默认，项目已完成迁移，
+# 不再使用 kotlin-android 插件。Gradle 9.5.0 / JDK 17+ / Build Tools 36。
 agp = "9.3.0"
 kotlin = "2.2.10"
 coreKtx = "1.15.0"
@@ -33,6 +33,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# 注意：不要再加 org.jetbrains.kotlin.android（kotlin-android）——AGP 9 内置 Kotlin，
+# 该插件与新 DSL 不兼容。版本仍与 AGP 内置的 KGP 保持一致（2.2.10）。
+# kotlin-parcelize 同理已移除：新 DSL 下它的编译插件不生效，Parcelable 均手写。
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }

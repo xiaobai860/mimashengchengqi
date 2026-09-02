@@ -19,11 +19,14 @@
  */
 package com.kunzisoft.keepass.model
 
+import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
 import com.kunzisoft.encrypt.Signature.fingerprintToUrlSafeBase64
 import com.kunzisoft.keepass.model.WebOrigin.Companion.WEB_ORIGIN_DEFAULT_SCHEME
-import kotlinx.parcelize.Parcelize
+
+// ⚠️ 本文件原先用 @Parcelize：AGP 9 新 DSL 下 kotlin-parcelize 编译插件不再生效
+// （KGP 的 ParcelizeSubplugin 要求 android 扩展仍是旧的 BaseExtension），故全部改为手写实现。
 
 /**
  * Represents an Android app origin by a list of [AndroidOrigin] and a list of [WebOrigin].
@@ -33,12 +36,17 @@ import kotlinx.parcelize.Parcelize
  * @property androidOrigins List of associated Android origins.
  * @property webOrigins List of associated web origins.
  */
-@Parcelize
 data class AppOrigin(
     val verified: Boolean,
     val androidOrigins: MutableList<AndroidOrigin> = mutableListOf(),
     val webOrigins: MutableList<WebOrigin> = mutableListOf(),
 ) : Parcelable {
+
+    constructor(parcel: Parcel) : this(
+        parcel.readByte() != 0.toByte(),
+        parcel.createTypedArrayList(AndroidOrigin.CREATOR) ?: mutableListOf(),
+        parcel.createTypedArrayList(WebOrigin.CREATOR) ?: mutableListOf()
+    )
 
     /**
      * Copy constructor for [AppOrigin].
@@ -207,7 +215,21 @@ data class AppOrigin(
         return result
     }
 
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeByte(if (verified) 1 else 0)
+        parcel.writeTypedList(androidOrigins)
+        parcel.writeTypedList(webOrigins)
+    }
+
+    override fun describeContents(): Int = 0
+
     companion object {
+
+        @JvmField
+        val CREATOR: Parcelable.Creator<AppOrigin> = object : Parcelable.Creator<AppOrigin> {
+            override fun createFromParcel(parcel: Parcel): AppOrigin = AppOrigin(parcel)
+            override fun newArray(size: Int): Array<AppOrigin?> = arrayOfNulls(size)
+        }
 
         private val TAG = AppOrigin::class.java.simpleName
 
@@ -248,11 +270,15 @@ class SignatureNotFoundException(
  * @property packageName The applicationId of the app.
  * @property fingerprint The SHA-256 hash of the app's signing certificate (colon-separated hex string).
  */
-@Parcelize
 data class AndroidOrigin(
     val packageName: String,
     val fingerprint: String?
 ) : Parcelable {
+
+    constructor(parcel: Parcel) : this(
+        parcel.readString() ?: "",
+        parcel.readString()
+    )
 
     /**
      * Creates an Android App Origin string of the form "android:apk-key-hash:<base64_urlsafe_hash>"
@@ -273,16 +299,29 @@ data class AndroidOrigin(
     override fun toString(): String {
         return "$packageName (${fingerprint})"
     }
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeString(packageName)
+        parcel.writeString(fingerprint)
+    }
+
+    override fun describeContents(): Int = 0
+
+    companion object CREATOR : Parcelable.Creator<AndroidOrigin> {
+        override fun createFromParcel(parcel: Parcel): AndroidOrigin = AndroidOrigin(parcel)
+        override fun newArray(size: Int): Array<AndroidOrigin?> = arrayOfNulls(size)
+    }
 }
 
 /**
  * Represents a web origin.
  * @property origin The full origin string (e.g., "https://example.com").
  */
-@Parcelize
 data class WebOrigin(
     val origin: String
 ) : Parcelable {
+
+    constructor(parcel: Parcel) : this(parcel.readString() ?: "")
 
     /**
      * Returns the raw origin string.
@@ -304,7 +343,20 @@ data class WebOrigin(
         return origin
     }
 
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeString(origin)
+    }
+
+    override fun describeContents(): Int = 0
+
     companion object {
+
+        @JvmField
+        val CREATOR: Parcelable.Creator<WebOrigin> = object : Parcelable.Creator<WebOrigin> {
+            override fun createFromParcel(parcel: Parcel): WebOrigin = WebOrigin(parcel)
+            override fun newArray(size: Int): Array<WebOrigin?> = arrayOfNulls(size)
+        }
+
         /**
          * The default scheme for web origins if none is provided.
          */

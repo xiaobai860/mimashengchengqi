@@ -19,13 +19,17 @@
  */
 package com.kunzisoft.keepass.database.element
 
+import android.os.Parcel
 import android.os.Parcelable
-import kotlinx.parcelize.Parcelize
 
-@Parcelize
+// ⚠️ 原为 @Parcelize：AGP 9 新 DSL 下 kotlin-parcelize 编译插件不再生效
+// （KGP 的 ParcelizeSubplugin 要求 android 扩展仍是旧的 BaseExtension），故手写实现。
 data class Tag(
     val name: String
 ): Parcelable {
+
+    constructor(parcel: Parcel) : this(parcel.readString() ?: "")
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -37,5 +41,16 @@ data class Tag(
 
     override fun hashCode(): Int {
         return name.hashCode()
+    }
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeString(name)
+    }
+
+    override fun describeContents(): Int = 0
+
+    companion object CREATOR : Parcelable.Creator<Tag> {
+        override fun createFromParcel(parcel: Parcel): Tag = Tag(parcel)
+        override fun newArray(size: Int): Array<Tag?> = arrayOfNulls(size)
     }
 }

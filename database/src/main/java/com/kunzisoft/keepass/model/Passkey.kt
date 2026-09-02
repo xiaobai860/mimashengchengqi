@@ -19,11 +19,12 @@
  */
 package com.kunzisoft.keepass.model
 
+import android.os.Parcel
 import android.os.Parcelable
 import com.kunzisoft.keepass.utils.CharArrayUtil.clear
-import kotlinx.parcelize.Parcelize
 
-@Parcelize
+// ⚠️ 原为 @Parcelize：AGP 9 新 DSL 下 kotlin-parcelize 编译插件不再生效
+// （KGP 的 ParcelizeSubplugin 要求 android 扩展仍是旧的 BaseExtension），故手写实现。
 data class Passkey(
     val username: String,
     val privateKeyPem: CharArray,
@@ -42,6 +43,16 @@ data class Passkey(
         passkey.relyingParty,
         passkey.backupEligibility,
         passkey.backupState
+    )
+
+    constructor(parcel: Parcel) : this(
+        parcel.readString() ?: "",
+        parcel.readString()?.toCharArray() ?: charArrayOf(),
+        parcel.readString() ?: "",
+        parcel.readString() ?: "",
+        parcel.readString() ?: "",
+        parcel.readInt().toBooleanOrNull(),
+        parcel.readInt().toBooleanOrNull()
     )
 
     fun clear() {
@@ -72,4 +83,34 @@ data class Passkey(
         result = 31 * result + relyingParty.hashCode()
         return result
     }
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeString(username)
+        parcel.writeString(privateKeyPem.concatToString())
+        parcel.writeString(credentialId)
+        parcel.writeString(userHandle)
+        parcel.writeString(relyingParty)
+        parcel.writeInt(backupEligibility.toParcelInt())
+        parcel.writeInt(backupState.toParcelInt())
+    }
+
+    override fun describeContents(): Int = 0
+
+    companion object CREATOR : Parcelable.Creator<Passkey> {
+        override fun createFromParcel(parcel: Parcel): Passkey = Passkey(parcel)
+        override fun newArray(size: Int): Array<Passkey?> = arrayOfNulls(size)
+    }
+}
+
+// Parcel 无「可空 Boolean」原语，用 -1 / 0 / 1 三态编码。
+private fun Boolean?.toParcelInt(): Int = when (this) {
+    true -> 1
+    false -> 0
+    null -> -1
+}
+
+private fun Int.toBooleanOrNull(): Boolean? = when (this) {
+    1 -> true
+    0 -> false
+    else -> null
 }
