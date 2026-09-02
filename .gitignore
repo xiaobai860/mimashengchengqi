@@ -1,57 +1,33 @@
-*.iml
-.gradle
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-gradle-local.properties
-
-# Android / Gradle build caches
-app/build/
+# Gradle / build outputs
+.gradle/
 build/
+app/build/
+crypto/build/
+database/build/
 .kotlin/
-# AGP 打包产物输出（apk / output-metadata / baselineProfiles）
-app/release/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Local configuration
+local.properties
+gradle-local.properties
 
 # IDE
 *.iml
 .idea/
-local.properties
 
-# AI assistant working memory / local tool dirs (local only, do not commit)
+# OS
+.DS_Store
+
+# AI assistant local dirs (not committed)
 .codebuddy/
 .workbuddy/
 .trae/
 
-# Debug / scratch files
-TestPBKDF2.*
-verify_*.py
+# Debug / scratch files (一次性排查脚本与 dump)
+*.log
 *_out.txt
-*_sdk37.log
-build_sdk37.log
-pipeline_out.txt
-_current.apk
-current_apk/
-ui.xml
-_after.xml
-_c.xml
-_chk.py
-_dlg.xml
-_dlg2.xml
-_dlgbtn.py
-_dlgctx.py
-_dlgctx2.py
-_dlgfind.py
-_find.py
-_h.xml
-_m.xml
-_post.xml
-_post2.xml
-_post2text.py
-_post3.xml
-_s.xml
-_ui3.xml
-_ui_text.py
+verify_*.py
+_*.py
+_*.xml
