@@ -57,10 +57,22 @@ object ImeAutoSwitch {
 
     /** 密码键盘是否已在系统中启用；启用则返回其 ime id（形如 com.mima.app/.MimaKeyboardService） */
     fun mimaImeId(context: Context): String? = try {
-        context.getSystemService(InputMethodManager::class.java)
+        val fromManager = context.getSystemService(InputMethodManager::class.java)
             ?.enabledInputMethodList
             ?.firstOrNull { it.packageName == context.packageName }
             ?.id
+        fromManager ?: run {
+            // ROM 刚启用时的刷新延迟兜底：直接读系统设置的已启用输入法列表
+            val cn = android.content.ComponentName(context, MimaKeyboardService::class.java)
+            val enabled = Settings.Secure.getString(
+                context.contentResolver, "enabled_input_methods"
+            ).orEmpty()
+            val hit = enabled.split(':').any {
+                it == cn.flattenToShortString() || it == cn.flattenToString() ||
+                    it.startsWith(context.packageName + "/")
+            }
+            if (hit) cn.flattenToShortString() else null
+        }
     } catch (_: Throwable) {
         null
     }

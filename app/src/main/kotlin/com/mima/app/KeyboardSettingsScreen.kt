@@ -67,20 +67,22 @@ fun KeyboardSettingsScreen(
             ?.filter { it.second.isNotBlank() }
             ?: emptyList()
     }
-    // 自动填充服务状态：从系统设置返回后（ON_RESUME）重新检测
+    // 以下三项依赖系统状态，从系统设置返回后（ON_RESUME）全部重新检测
     var autofillEnabled by remember { mutableStateOf(MimaAutofillService.isAutofillEnabled(context)) }
+    var mimaImeReady by remember { mutableStateOf(ImeAutoSwitch.mimaImeId(context) != null) }
+    var imePermissionGranted by remember { mutableStateOf(ImeAutoSwitch.hasWriteSecureSettings(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 autofillEnabled = MimaAutofillService.isAutofillEnabled(context)
+                mimaImeReady = ImeAutoSwitch.mimaImeId(context) != null
+                imePermissionGranted = ImeAutoSwitch.hasWriteSecureSettings(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val mimaImeReady = remember { ImeAutoSwitch.mimaImeId(context) != null }
-    val imePermissionGranted = remember { ImeAutoSwitch.hasWriteSecureSettings(context) }
     val grantCmd = stringResource(R.string.keyboard_auto_switch_grant_cmd)
 
     // 拦截系统返回键：返回设置页而不是退出应用

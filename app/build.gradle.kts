@@ -17,10 +17,10 @@ android {
         applicationId = "com.mima.app"
         minSdk = 34
         targetSdk = 36
-        // 版本规则：年月日 + 两位迭代版号（当天第一版 01，第二版 02……）；
-        // versionCode 直接用同一数字（2026090901 < 21 亿上限，到 2099 年都安全）
-        versionCode = 2026090902
-        versionName = "2026090902"
+        // versionName：展示用版本号 = 年月日 + 两位迭代版号（当天第一版 01，第二版 02……）
+        // versionCode：系统用的递增整数，每次发版 +1（不可回退，与 versionName 无关）
+        versionCode = 64
+        versionName = "2026091001"
     }
 
     // 签名配置：优先读取项目根目录 keystore.properties（已 gitignore，不进仓库），
