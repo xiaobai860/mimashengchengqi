@@ -237,4 +237,9 @@
     <string name="keyboard_secure_hint">Keyboard input is protected from screenshots and screen recording</string>
     <string name="keyboard_enable">Enable password keyboard</string>
     <string name="keyboard_enable_summary">Open system settings to enable this keyboard</string>
+    <string name="keyboard_auto_switch">Auto-switch to password keyboard</string>
+    <string name="keyboard_auto_switch_summary">Switch to the password keyboard when a password field is focused, and switch back to the previous keyboard when done</string>
+    <string name="keyboard_auto_switch_need_enable">Enable the password keyboard in system settings first</string>
+    <string name="keyboard_auto_switch_need_grant">Requires permission. Connect to a computer and run:</string>
+    <string name="keyboard_auto_switch_grant_cmd">adb shell pm grant com.lesspass.app android.permission.WRITE_SECURE_SETTINGS</string>
 </resources>

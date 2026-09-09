@@ -648,7 +648,7 @@ fun GenerateScreen(
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
             )
             if (masterPassword.isNotEmpty() && fingerprint.isNotEmpty()) {
                 Row(
@@ -1825,7 +1825,7 @@ private fun CreateNewDatabaseDialog(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
                 )
                 OutlinedTextField(
                     value = confirmPassword,
@@ -1834,7 +1834,7 @@ private fun CreateNewDatabaseDialog(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
                 )
                 errorMessage?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -1880,7 +1880,7 @@ private fun ExternalKdbxPasswordDialog(
                     label = { Text(stringResource(R.string.vault_password_optional_label)) },
                     singleLine = true,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().autoMimaKeyboard()
                 )
                 error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error, fontSize = 12.sp) }
             }
@@ -2009,7 +2009,7 @@ private fun KdbxFilePasswordDialog(
                     label = { Text(stringResource(R.string.vault_password_optional_label)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
                 )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
             }
@@ -2057,7 +2057,7 @@ private fun ChangePasswordDialog(
                         label = { Text(stringResource(R.string.current_password_label)) },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
                     )
                 }
                 OutlinedTextField(
@@ -2066,7 +2066,7 @@ private fun ChangePasswordDialog(
                     label = { Text(stringResource(R.string.new_password_label)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
                 )
                 OutlinedTextField(
                     value = confirmPassword,
@@ -2074,7 +2074,7 @@ private fun ChangePasswordDialog(
                     label = { Text(stringResource(R.string.confirm_new_password_label)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
                 )
                 errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
             }

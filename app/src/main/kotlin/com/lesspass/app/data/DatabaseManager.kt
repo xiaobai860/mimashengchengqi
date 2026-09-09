@@ -72,6 +72,7 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
         private const val KEY_CURRENT_DB_FILE = "current_db_file"
         private const val KEY_KEYBOARD_SHUFFLE = "keyboard_shuffle"
+        private const val KEY_AUTO_SWITCH_IME = "auto_switch_ime"
 
         /** 供密码键盘（IME）读取的密码本条目快照；仅内存，不持久化 */
         @Volatile
@@ -85,6 +86,16 @@ class DatabaseManager(private val context: Context) {
         fun setKeyboardShuffleEnabled(context: Context, enabled: Boolean) {
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
                 .edit().putBoolean(KEY_KEYBOARD_SHUFFLE, enabled).apply()
+        }
+
+        /** 密码框聚焦时自动切到密码键盘、失焦后切回（默认开；实际生效还需 WRITE_SECURE_SETTINGS 授权） */
+        fun isAutoSwitchImeEnabled(context: Context): Boolean =
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_AUTO_SWITCH_IME, true)
+
+        fun setAutoSwitchImeEnabled(context: Context, enabled: Boolean) {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_AUTO_SWITCH_IME, enabled).apply()
         }
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
 

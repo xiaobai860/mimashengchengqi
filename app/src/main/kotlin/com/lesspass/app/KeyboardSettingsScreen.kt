@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -15,7 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.lesspass.app.data.DatabaseManager
 import com.lesspass.app.ui.theme.MimaShapes
 
@@ -26,6 +29,9 @@ fun KeyboardSettingsScreen(
 ) {
     val context = LocalContext.current
     var shuffle by remember { mutableStateOf(DatabaseManager.isKeyboardShuffleEnabled(context)) }
+    var autoSwitch by remember { mutableStateOf(DatabaseManager.isAutoSwitchImeEnabled(context)) }
+    val mimaImeReady = remember { ImeAutoSwitch.mimaImeId(context) != null }
+    val imePermissionGranted = remember { ImeAutoSwitch.hasWriteSecureSettings(context) }
 
     // 拦截系统返回键：返回设置页而不是退出应用
     BackHandler { onBack() }
@@ -89,6 +95,68 @@ fun KeyboardSettingsScreen(
                                 shuffle = it
                                 DatabaseManager.setKeyboardShuffleEnabled(context, it)
                             }
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MimaShapes.card,
+                tonalElevation = 1.dp
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Autorenew,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            stringResource(R.string.keyboard_auto_switch),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.keyboard_auto_switch))
+                            Text(
+                                stringResource(R.string.keyboard_auto_switch_summary),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = autoSwitch,
+                            onCheckedChange = {
+                                autoSwitch = it
+                                DatabaseManager.setAutoSwitchImeEnabled(context, it)
+                            }
+                        )
+                    }
+                    if (!mimaImeReady) {
+                        Text(
+                            stringResource(R.string.keyboard_auto_switch_need_enable),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else if (!imePermissionGranted) {
+                        Text(
+                            stringResource(R.string.keyboard_auto_switch_need_grant),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            stringResource(R.string.keyboard_auto_switch_grant_cmd),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

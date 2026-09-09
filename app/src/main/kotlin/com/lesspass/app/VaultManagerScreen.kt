@@ -357,7 +357,7 @@ private fun EntryEditorDialog(
                     value = password, onValueChange = { password = it },
                     label = { Text(stringResource(R.string.vault_password)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().autoMimaKeyboard(),
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(onClick = { showPassword = !showPassword }) {

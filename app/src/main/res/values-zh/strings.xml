@@ -237,4 +237,9 @@
     <string name="keyboard_secure_hint">键盘已禁止截屏与录屏，保障密码安全</string>
     <string name="keyboard_enable">启用密码键盘</string>
     <string name="keyboard_enable_summary">打开系统设置以启用本键盘</string>
+    <string name="keyboard_auto_switch">自动弹出密码键盘</string>
+    <string name="keyboard_auto_switch_summary">聚焦密码输入框时自动切换到密码键盘，输入完成后自动切回原键盘</string>
+    <string name="keyboard_auto_switch_need_enable">请先在系统设置中启用密码键盘</string>
+    <string name="keyboard_auto_switch_need_grant">需要授权，连接电脑后执行：</string>
+    <string name="keyboard_auto_switch_grant_cmd">adb shell pm grant com.lesspass.app android.permission.WRITE_SECURE_SETTINGS</string>
 </resources>

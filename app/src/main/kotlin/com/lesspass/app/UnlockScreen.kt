@@ -119,7 +119,7 @@ fun UnlockScreen(
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().autoMimaKeyboard(),
             enabled = !isLoading
         )
 
