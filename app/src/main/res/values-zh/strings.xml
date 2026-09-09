@@ -236,17 +236,18 @@
     <string name="keyboard_settings_entry_summary">设置键盘乱序与启用键盘</string>
     <string name="keyboard_secure_hint">键盘已禁止截屏与录屏，保障密码安全</string>
     <string name="keyboard_enable">启用密码键盘</string>
-    <string name="keyboard_enable_summary">打开系统设置以启用本键盘</string>
+    <string name="keyboard_enable_summary">在系统设置中启用本键盘，所有自动切换功能都依赖它</string>
+    <string name="keyboard_enable_action">在系统设置中启用本键盘</string>
     <string name="keyboard_auto_switch">自动切入密码键盘</string>
-    <string name="keyboard_auto_switch_summary">聚焦密码输入框时自动切换到密码键盘</string>
+    <string name="keyboard_auto_switch_summary">本应用或其它应用聚焦密码框时，自动切换到密码键盘（需 adb 授权）</string>
     <string name="keyboard_auto_switch_need_enable">请先在系统设置中启用密码键盘</string>
     <string name="keyboard_auto_switch_need_grant">需要授权，点击命令即可复制：</string>
-    <string name="keyboard_auto_switch_grant_cmd">adb shell pm grant com.lesspass.app android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="keyboard_auto_switch_grant_cmd">adb shell pm grant com.mima.app android.permission.WRITE_SECURE_SETTINGS</string>
     <string name="keyboard_switch_in_adb">ADB 自动切换</string>
     <string name="keyboard_switch_in_picker">弹出输入法选择器</string>
-    <string name="keyboard_switch_in_picker_summary">聚焦密码框时弹出系统输入法选择器（仅当前键盘不是密码键盘时）。系统仅允许焦点应用唤起选择器，故仅本应用内生效；其它应用请用 ADB 自动切换</string>
+    <string name="keyboard_switch_in_picker_summary">聚焦密码框时弹出系统输入法选择器（仅当前键盘不是密码键盘时）。系统仅允许焦点应用唤起选择器，故仅本应用内生效；其它应用请使用 ADB 自动切换或开启自动填充（Autofill）</string>
     <string name="keyboard_switch_out">自动切回</string>
-    <string name="keyboard_switch_out_summary">在非密码输入框唤起键盘时，自动切回原键盘</string>
+    <string name="keyboard_switch_out_summary">在非密码输入框唤起键盘时，自动切回下方选择的目标键盘</string>
     <string name="keyboard_switch_out_target">切回目标</string>
     <string name="keyboard_switch_out_target_previous">上一个键盘</string>
     <string name="keyboard_switch_out_grace">选择器切入宽限</string>
@@ -257,6 +258,6 @@
     <string name="keyboard_service_off">未启用</string>
     <string name="autofill_service_name">Mima 自动填充</string>
     <string name="keyboard_autofill">自动填充（Autofill）</string>
-    <string name="keyboard_autofill_summary">把密码本条目填充到其它应用的登录表单；同时检测其它应用的密码框（ADB 模式下自动切入密码键盘）。需设为系统自动填充服务</string>
+    <string name="keyboard_autofill_summary">把密码本条目填充到其它应用的登录表单，并检测其它应用的密码框以触发自动切入。需设为系统自动填充服务</string>
     <string name="keyboard_autofill_open">设为自动填充服务</string>
 </resources>

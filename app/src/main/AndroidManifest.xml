@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 密码框聚焦时自动切换系统默认输入法（signature 权限，需 adb 授权：adb shell pm grant com.lesspass.app android.permission.WRITE_SECURE_SETTINGS） -->
+    <!-- 密码框聚焦时自动切换系统默认输入法（signature 权限，需 adb 授权：adb shell pm grant com.mima.app android.permission.WRITE_SECURE_SETTINGS） -->
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />

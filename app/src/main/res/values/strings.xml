@@ -236,17 +236,18 @@
     <string name="keyboard_settings_entry_summary">Shuffle layout and enable the keyboard</string>
     <string name="keyboard_secure_hint">Keyboard input is protected from screenshots and screen recording</string>
     <string name="keyboard_enable">Enable password keyboard</string>
-    <string name="keyboard_enable_summary">Open system settings to enable this keyboard</string>
+    <string name="keyboard_enable_summary">Enable this keyboard in system settings — all auto-switch features depend on it</string>
+    <string name="keyboard_enable_action">Enable this keyboard in system settings</string>
     <string name="keyboard_auto_switch">Auto-switch to password keyboard</string>
-    <string name="keyboard_auto_switch_summary">Switch to the password keyboard when a password field is focused</string>
+    <string name="keyboard_auto_switch_summary">Switch to the password keyboard when a password field is focused, in this app or other apps (requires adb grant)</string>
     <string name="keyboard_auto_switch_need_enable">Enable the password keyboard in system settings first</string>
     <string name="keyboard_auto_switch_need_grant">Requires permission. Tap the command to copy it:</string>
-    <string name="keyboard_auto_switch_grant_cmd">adb shell pm grant com.lesspass.app android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="keyboard_auto_switch_grant_cmd">adb shell pm grant com.mima.app android.permission.WRITE_SECURE_SETTINGS</string>
     <string name="keyboard_switch_in_adb">ADB auto-switch</string>
     <string name="keyboard_switch_in_picker">Input method picker</string>
-    <string name="keyboard_switch_in_picker_summary">Show the system input method picker when a password field is focused (only when the current keyboard is not the password keyboard). Android only allows the focused app to open the picker, so this works inside this app; use ADB auto-switch for other apps</string>
+    <string name="keyboard_switch_in_picker_summary">Show the system input method picker when a password field is focused (only when the current keyboard is not the password keyboard). Android only allows the focused app to open the picker, so this works inside this app; for other apps use ADB auto-switch or enable Autofill</string>
     <string name="keyboard_switch_out">Auto-switch back</string>
-    <string name="keyboard_switch_out_summary">When the keyboard opens on a non-password field, switch back automatically</string>
+    <string name="keyboard_switch_out_summary">When the keyboard opens on a non-password field, switch back to the target keyboard chosen below</string>
     <string name="keyboard_switch_out_target">Switch back to</string>
     <string name="keyboard_switch_out_target_previous">Previous keyboard</string>
     <string name="keyboard_switch_out_grace">Selector grace period</string>
@@ -257,6 +258,6 @@
     <string name="keyboard_service_off">Not enabled</string>
     <string name="autofill_service_name">Mima Autofill</string>
     <string name="keyboard_autofill">Autofill</string>
-    <string name="keyboard_autofill_summary">Fill password book entries into other apps\' login forms; also detects password fields in other apps for the ADB auto-switch. Requires being set as the system autofill service</string>
+    <string name="keyboard_autofill_summary">Fill password book entries into other apps\' login forms, and detect their password fields to trigger the auto switch-in. Set it as the system autofill service</string>
     <string name="keyboard_autofill_open">Set as autofill service</string>
 </resources>
