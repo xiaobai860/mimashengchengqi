@@ -232,7 +232,9 @@
     <string name="keyboard_space">Space</string>
     <string name="keyboard_no_title">No title</string>
     <string name="keyboard_shuffle">Shuffle keyboard</string>
-    <string name="keyboard_shuffle_summary">Randomize key positions</string>
+    <string name="keyboard_shuffle_summary">Randomize letters and digits</string>
+    <string name="keyboard_settings_entry_summary">Shuffle layout and enable the keyboard</string>
+    <string name="keyboard_secure_hint">Keyboard input is protected from screenshots and screen recording</string>
     <string name="keyboard_enable">Enable password keyboard</string>
     <string name="keyboard_enable_summary">Open system settings to enable this keyboard</string>
 </resources>

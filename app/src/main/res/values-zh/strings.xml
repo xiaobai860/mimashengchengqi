@@ -232,7 +232,9 @@
     <string name="keyboard_space">空格</string>
     <string name="keyboard_no_title">无标题</string>
     <string name="keyboard_shuffle">键盘乱序</string>
-    <string name="keyboard_shuffle_summary">随机打乱按键位置</string>
+    <string name="keyboard_shuffle_summary">随机打乱英文字母和数字键位</string>
+    <string name="keyboard_settings_entry_summary">设置键盘乱序与启用键盘</string>
+    <string name="keyboard_secure_hint">键盘已禁止截屏与录屏，保障密码安全</string>
     <string name="keyboard_enable">启用密码键盘</string>
     <string name="keyboard_enable_summary">打开系统设置以启用本键盘</string>
 </resources>
