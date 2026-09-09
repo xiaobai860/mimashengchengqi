@@ -1,5 +1,7 @@
 package com.lesspass.app.ui.theme
 
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -10,6 +12,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 
 /**
@@ -184,6 +187,73 @@ private fun material3SchemeFromSeed(seed: Color, dark: Boolean): ColorScheme {
             onError = Color.White,
             errorContainer = Color(0xFFF9DEDC),
             onErrorContainer = Color(0xFF410E0B),
+        )
+    }
+}
+
+/** 密码键盘（传统 View IME）配色：各槽位为 Android Color Int。 */
+data class KeyboardPalette(
+    val background: Int,
+    val key: Int,
+    val fn: Int,
+    val active: Int,
+    val keyText: Int,
+    val fnText: Int,
+    val activeText: Int,
+    val statusText: Int,
+    val inverseBg: Int,
+    val inverseText: Int,
+)
+
+/**
+ * 为密码键盘生成与当前应用主题一致的配色（含动态取色/预设色板/亮暗模式）。
+ *
+ * 对比度遵循 M3 tone 配对规则：键面文字用 onSurface，激活键用 primary+onPrimary，
+ * 锁定态用 inverseSurface+inverseOnSurface 反转，保证可读性。
+ * 非 Composable，可从 InputMethodService 直接调用。
+ */
+fun keyboardPaletteFor(context: Context): KeyboardPalette {
+    val state = ThemePrefs.load(context)
+    val dark = when (state.mode) {
+        ThemeMode.SYSTEM ->
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val s = if (state.dynamicColor) {
+        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else {
+        material3SchemeFromSeed(Color(state.seed.argb), dark)
+    }
+    return if (dark) {
+        // 暗色：背景最深，键面用较亮的 surfaceContainerHigh，功能键稍暗形成层次。
+        // 激活键用 inversePrimary（中深度主题色）+ 白字：避免暗色 primary(过亮)+黑字的反色观感
+        KeyboardPalette(
+            background = s.surfaceContainerLowest.toArgb(),
+            key = s.surfaceContainerHigh.toArgb(),
+            fn = s.surfaceContainer.toArgb(),
+            active = s.inversePrimary.toArgb(),
+            keyText = s.onSurface.toArgb(),
+            fnText = s.onSurfaceVariant.toArgb(),
+            activeText = Color.White.toArgb(),
+            statusText = s.onSurfaceVariant.toArgb(),
+            inverseBg = s.inverseSurface.toArgb(),
+            inverseText = s.inverseOnSurface.toArgb(),
+        )
+    } else {
+        // 亮色：背景浅，键面用最深的 surfaceContainerHighest，功能键略浅；激活键=种子色+白字
+        KeyboardPalette(
+            background = s.surfaceContainerLow.toArgb(),
+            key = s.surfaceContainerHighest.toArgb(),
+            fn = s.surfaceContainerHigh.toArgb(),
+            active = s.primary.toArgb(),
+            keyText = s.onSurface.toArgb(),
+            fnText = s.onSurfaceVariant.toArgb(),
+            activeText = Color.White.toArgb(),
+            statusText = s.onSurfaceVariant.toArgb(),
+            inverseBg = s.inverseSurface.toArgb(),
+            inverseText = s.inverseOnSurface.toArgb(),
         )
     }
 }

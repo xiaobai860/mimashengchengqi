@@ -18,6 +18,7 @@ import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.lesspass.app.data.DatabaseManager
+import com.lesspass.app.ui.theme.keyboardPaletteFor
 import kotlin.random.Random
 
 /**
@@ -44,9 +45,6 @@ class MimaKeyboardService : InputMethodService() {
         const val SHIFT_ON = 1      // 单次大写：输出一个字母后回落
         const val SHIFT_LOCKED = 2  // 锁定大写
 
-        val KEY_BG = Color.rgb(52, 54, 60)          // 普通键
-        val FN_BG = Color.rgb(38, 40, 46)           // 功能键
-        val ACTIVE_BG = Color.rgb(79, 91, 213)      // 激活态（shift/模式）
         const val KEY_RADIUS_DP = 10f
 
         const val ROW_H_DP = 46      // 键区统一行高（三页一致）
@@ -57,6 +55,18 @@ class MimaKeyboardService : InputMethodService() {
     private lateinit var entryRow: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var keyboardLayout: LinearLayout
+
+    // 主题联动配色（每次键盘弹出时从应用主题/动态取色重建），字段名与原常量对应
+    private var keyBg = Color.rgb(52, 54, 60)
+    private var fnBg = Color.rgb(38, 40, 46)
+    private var activeBg = Color.rgb(79, 91, 213)
+    private var keyboardBg = Color.rgb(28, 27, 31)
+    private var keyText = Color.WHITE
+    private var fnText = Color.WHITE
+    private var activeText = Color.WHITE
+    private var statusColor = Color.rgb(160, 162, 170)
+    private var inverseBg = Color.WHITE
+    private var inverseText = Color.rgb(28, 27, 31)
 
     private var mode = MODE_LETTERS
     private var shiftState = SHIFT_OFF
@@ -85,7 +95,7 @@ class MimaKeyboardService : InputMethodService() {
         rootLayout.addView(scroll)
 
         statusText = TextView(this).apply {
-            setTextColor(Color.rgb(160, 162, 170))
+            setTextColor(statusColor)
             textSize = 11f
             setPadding(dp(4), dp(2), dp(4), dp(2))
         }
@@ -132,6 +142,22 @@ class MimaKeyboardService : InputMethodService() {
     // ---------- 顶部条目芯片 ----------
 
     private fun refreshEntries() {
+        // 每次键盘弹出重建主题配色（跟随应用动态取色/预设色板/亮暗模式）
+        keyboardPaletteFor(this).let { p ->
+            keyboardBg = p.background
+            keyBg = p.key
+            fnBg = p.fn
+            activeBg = p.active
+            keyText = p.keyText
+            fnText = p.fnText
+            activeText = p.activeText
+            statusColor = p.statusText
+            inverseBg = p.inverseBg
+            inverseText = p.inverseText
+            rootLayout.setBackgroundColor(keyboardBg)
+            statusText.setTextColor(statusColor)
+        }
+
         val shuffle = DatabaseManager.isKeyboardShuffleEnabled(this)
         // 乱序：每次键盘弹出都在 QWERTY 基础上重新洗牌（字母 26 键 + 数字 10 键随机位置）
         shuffledLetters = if (shuffle) qwertyBase.shuffled(Random) else qwertyBase
@@ -226,25 +252,25 @@ class MimaKeyboardService : InputMethodService() {
                     0, LinearLayout.LayoutParams.MATCH_PARENT, 1f
                 ).apply { setMargins(dp(3), 0, dp(3), 0) }
             }
-            left.addView(modeButton("ABC", FN_BG, BOTTOM_H_DP) { switchMode("ABC") })
-            left.addView(modeButton("?123", FN_BG, BOTTOM_H_DP) { switchMode("?123") })
+            left.addView(modeButton("ABC", fnBg, BOTTOM_H_DP) { switchMode("ABC") })
+            left.addView(modeButton("?123", fnBg, BOTTOM_H_DP) { switchMode("?123") })
             row.addView(left)
             row.addView(
-                keyButton(shuffledDigits[9], 1f, KEY_BG, BOTTOM_H_DP) { commit(shuffledDigits[9]) }
+                keyButton(shuffledDigits[9], 1f, keyBg, BOTTOM_H_DP) { commit(shuffledDigits[9]) }
                     .apply { textSize = 20f }
             )
             row.addView(backspaceButton(1f, big = true, heightDp = BOTTOM_H_DP))
             return row
         }
         val (a, b, bBg) = when (mode) {
-            MODE_LETTERS -> Triple("?123", "1 2 3", ACTIVE_BG)
-            else -> Triple("ABC", "1 2 3", ACTIVE_BG)
+            MODE_LETTERS -> Triple("?123", "1 2 3", activeBg)
+            else -> Triple("ABC", "1 2 3", activeBg)
         }
-        row.addView(modeButton(a, FN_BG, BOTTOM_H_DP) { switchMode(a) })
+        row.addView(modeButton(a, fnBg, BOTTOM_H_DP) { switchMode(a) })
         row.addView(modeButton(b, bBg, BOTTOM_H_DP) { switchMode(b) })
-        row.addView(keyButton(getString(R.string.keyboard_space), 4f, KEY_BG, BOTTOM_H_DP) { commit(" ") })
-        row.addView(keyButton("TAB", 1.5f, FN_BG, BOTTOM_H_DP) { sendTab() })
-        row.addView(keyButton("⌨", 1.5f, FN_BG, BOTTOM_H_DP) { hideSelf() })
+        row.addView(keyButton(getString(R.string.keyboard_space), 4f, keyBg, BOTTOM_H_DP) { commit(" ") })
+        row.addView(keyButton("TAB", 1.5f, fnBg, BOTTOM_H_DP) { sendTab() })
+        row.addView(keyButton("⌨", 1.5f, fnBg, BOTTOM_H_DP) { hideSelf() })
         return row
     }
 
@@ -292,7 +318,7 @@ class MimaKeyboardService : InputMethodService() {
         return keyButton(
             if (shiftState == SHIFT_LOCKED) "⇪" else "⇧",
             1.5f,
-            if (shiftState == SHIFT_OFF) FN_BG else ACTIVE_BG,
+            if (shiftState == SHIFT_OFF) fnBg else activeBg,
             ROW_H_DP
         ) {
             shiftState = when (shiftState) {
@@ -304,12 +330,12 @@ class MimaKeyboardService : InputMethodService() {
         }.apply {
             textSize = 24f
             when (shiftState) {
-                SHIFT_OFF -> setTextColor(Color.rgb(200, 202, 208))
-                SHIFT_ON -> setTextColor(Color.WHITE)
+                SHIFT_OFF -> setTextColor(fnText)
+                SHIFT_ON -> setTextColor(activeText)
                 else -> {
-                    // 锁定：白底深色加粗，与单次/关闭明显区分
-                    background = keyBackground(Color.WHITE)
-                    setTextColor(Color.rgb(28, 27, 31))
+                    // 锁定：反色底（暗色主题≈白底、亮色主题≈深底），与单次/关闭明显区分
+                    background = keyBackground(inverseBg)
+                    setTextColor(inverseText)
                     paint.isFakeBoldText = true
                 }
             }
@@ -318,15 +344,15 @@ class MimaKeyboardService : InputMethodService() {
 
     private fun letterButton(ch: String, weight: Float): Button {
         val label = if (shiftState == SHIFT_OFF) ch else ch.uppercase()
-        return keyButton(label, weight, KEY_BG, ROW_H_DP) { onKey(ch) }.apply { textSize = 22f }
+        return keyButton(label, weight, keyBg, ROW_H_DP) { onKey(ch) }.apply { textSize = 22f }
     }
 
     private fun symbolButton(s: String): Button =
-        keyButton(s, 1f, KEY_BG, ROW_H_DP) { commit(s) }
+        keyButton(s, 1f, keyBg, ROW_H_DP) { commit(s) }
 
     /** 数字页大按键（与其它页同行高，字号更大） */
     private fun numpadButton(digit: String): Button =
-        keyButton(digit, 1f, KEY_BG, ROW_H_DP) { commit(digit) }.apply { textSize = 22f }
+        keyButton(digit, 1f, keyBg, ROW_H_DP) { commit(digit) }.apply { textSize = 22f }
 
     private fun modeButton(label: String, bg: Int, heightDp: Int = ROW_H_DP, onClick: () -> Unit): Button =
         keyButton(label, 1.5f, bg, heightDp) { onClick() }
@@ -348,7 +374,7 @@ class MimaKeyboardService : InputMethodService() {
     private fun backspaceButton(weight: Float, big: Boolean = false, heightDp: Int = ROW_H_DP): Button {
         val b = Button(this).apply {
             text = "⌫"
-            setTextColor(Color.WHITE)
+            setTextColor(fnText)
             textSize = if (big) 22f else 16f
             isAllCaps = false
             minWidth = 0
@@ -356,7 +382,7 @@ class MimaKeyboardService : InputMethodService() {
             minimumWidth = 0
             minimumHeight = 0
             setPadding(0, 0, 0, 0)
-            background = keyBackground(FN_BG)
+            background = keyBackground(fnBg)
             layoutParams = keyParams(weight, heightDp)
         }
         // 按下即删 1 次；按住 400ms 后以 50ms 间隔连删
@@ -381,11 +407,6 @@ class MimaKeyboardService : InputMethodService() {
 
     // ---------- 键样式 ----------
 
-    private fun styleActive(b: Button): Button {
-        b.background = keyBackground(ACTIVE_BG)
-        return b
-    }
-
     private fun keyBackground(bg: Int): GradientDrawable =
         GradientDrawable().apply {
             setColor(bg)
@@ -395,7 +416,7 @@ class MimaKeyboardService : InputMethodService() {
     private fun keyButton(label: String, weight: Float, bg: Int, heightDp: Int, onClick: () -> Unit): Button {
         return Button(this).apply {
             text = label
-            setTextColor(Color.WHITE)
+            setTextColor(keyText)
             textSize = 16f
             isAllCaps = false
             minWidth = 0
@@ -419,14 +440,14 @@ class MimaKeyboardService : InputMethodService() {
     private fun actionButton(label: String, onClick: () -> Unit): Button {
         return Button(this).apply {
             text = label
-            setTextColor(Color.WHITE)
+            setTextColor(activeText)
             textSize = 13f
             minWidth = 0
             minHeight = 0
             minimumWidth = 0
             minimumHeight = 0
             setPadding(dp(10), dp(4), dp(10), dp(4))
-            background = keyBackground(ACTIVE_BG)
+            background = keyBackground(activeBg)
             setOnClickListener { onClick() }
         }
     }
