@@ -44,9 +44,13 @@ fun KeyboardSettingsScreen(
 ) {
     val context = LocalContext.current
     var shuffle by remember { mutableStateOf(DatabaseManager.isKeyboardShuffleEnabled(context)) }
-    // 自动切入模式（互斥）：ADB 直切 / 弹窗选择器；以及自动切回开关
+    // 自动切入模式（互斥）：ADB 直切 / 弹窗选择器；以及自动切回开关。
+    // 自愈：持久化为 ADB 但 WRITE_SECURE_SETTINGS 已被撤销时，自动降级为关，避免开关卡在灰色选中态
     var adbSwitch by remember {
-        mutableStateOf(DatabaseManager.getSwitchInMode(context) == ImeAutoSwitch.MODE_ADB)
+        val savedAdb = DatabaseManager.getSwitchInMode(context) == ImeAutoSwitch.MODE_ADB
+        val valid = savedAdb && ImeAutoSwitch.hasWriteSecureSettings(context)
+        if (savedAdb && !valid) DatabaseManager.setSwitchInMode(context, ImeAutoSwitch.MODE_OFF)
+        mutableStateOf(valid)
     }
     var pickerSwitch by remember {
         mutableStateOf(DatabaseManager.getSwitchInMode(context) == ImeAutoSwitch.MODE_PICKER)
