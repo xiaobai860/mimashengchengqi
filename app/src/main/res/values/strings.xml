@@ -93,6 +93,8 @@
     <string name="fingerprint_cleared_toast">Fingerprint unlock cleared</string>
     <string name="vault_status">Vault Status</string>
     <string name="data_management">Data Management</string>
+    <string name="prevent_screenshot_title">Prevent screenshots &amp; screen recording</string>
+    <string name="prevent_screenshot_summary">Block screen capture while the app is open (recommended for sensitive passwords)</string>
     <string name="refresh">Refresh</string>
     <string name="refresh_desc">Refresh</string>
     <string name="file_path">File path: %1$s</string>

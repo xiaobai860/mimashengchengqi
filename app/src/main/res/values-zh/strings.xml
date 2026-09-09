@@ -93,6 +93,8 @@
     <string name="fingerprint_cleared_toast">已清除指纹解锁</string>
     <string name="vault_status">密码本状态</string>
     <string name="data_management">数据管理</string>
+    <string name="prevent_screenshot_title">防截屏 / 录屏</string>
+    <string name="prevent_screenshot_summary">应用在前台时禁止截屏与录屏（敏感密码建议开启）</string>
     <string name="refresh">刷新</string>
     <string name="refresh_desc">刷新</string>
     <string name="file_path">文件路径: %1$s</string>

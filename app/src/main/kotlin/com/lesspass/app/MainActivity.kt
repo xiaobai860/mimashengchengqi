@@ -117,6 +117,10 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // 防截屏 / 录屏：默认开启，启动即生效（覆盖解锁页等全部界面）
+        if (DatabaseManager.isScreenshotPreventionEnabled(this)) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
         setContent {
             val context = LocalContext.current
             val dbManager = remember {
@@ -920,6 +924,7 @@ fun SettingsScreen(
 
     // ============ 安全设置状态 ============
     var timeoutEnabled by remember { mutableStateOf(dbManager.timeoutEnabled) }
+    var preventScreenshot by remember { mutableStateOf(dbManager.preventScreenshot) }
     var timeoutMinutes by remember { mutableStateOf(dbManager.timeoutMinutes) }
     var autoUnlock by remember { mutableStateOf(dbManager.autoUnlock) }
     val hasPassword = dbManager.hasPassword
@@ -1271,6 +1276,34 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // 防截屏 / 录屏
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.prevent_screenshot_title), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.prevent_screenshot_summary),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = preventScreenshot,
+                        onCheckedChange = { enabled ->
+                            preventScreenshot = enabled
+                            dbManager.setPreventScreenshot(enabled)
+                            val w = (context as? FragmentActivity)?.window
+                            if (enabled) {
+                                w?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                            } else {
+                                w?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                            }
+                        }
                     )
                 }
 

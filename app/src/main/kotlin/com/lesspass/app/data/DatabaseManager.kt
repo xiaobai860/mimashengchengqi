@@ -66,6 +66,7 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_AUTO_UNLOCK = "auto_unlock"
         private const val KEY_TIMEOUT_ENABLED = "timeout_enabled"
         private const val KEY_TIMEOUT_MINUTES = "timeout_minutes"
+        private const val KEY_PREVENT_SCREENSHOT = "prevent_screenshot"
         private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
         private const val KEY_CURRENT_DB_FILE = "current_db_file"
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
@@ -89,6 +90,10 @@ class DatabaseManager(private val context: Context) {
 
         private fun prefs(context: Context): SharedPreferences =
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+
+        /** 启动时使用：读取防截屏偏好（默认开启），供 Activity 在 onCreate 设置 FLAG_SECURE */
+        fun isScreenshotPreventionEnabled(context: Context): Boolean =
+            prefs(context).getBoolean(KEY_PREVENT_SCREENSHOT, true)
     }
 
     /** 机型标识：用于默认密码本命名，清洗为文件名安全字符 */
@@ -148,11 +153,17 @@ class DatabaseManager(private val context: Context) {
     /** 超时时长（分钟，默认 5） */
     val timeoutMinutes: Int get() = prefs(context).getInt(KEY_TIMEOUT_MINUTES, 5)
 
+    /** 防截屏 / 录屏（默认开启） */
+    val preventScreenshot: Boolean get() = prefs(context).getBoolean(KEY_PREVENT_SCREENSHOT, true)
+
     fun setTimeoutEnabled(enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_TIMEOUT_ENABLED, enabled).apply()
     }
     fun setTimeoutMinutes(minutes: Int) {
         prefs(context).edit().putInt(KEY_TIMEOUT_MINUTES, minutes).apply()
+    }
+    fun setPreventScreenshot(enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PREVENT_SCREENSHOT, enabled).apply()
     }
 
     /**
