@@ -17,26 +17,35 @@ import androidx.core.content.ContextCompat
 import com.lesspass.app.data.DatabaseManager
 
 /**
- * 密码框聚焦时自动切换到本应用密码键盘（MimaKeyboardService），失焦后切回原键盘。
+ * 密码框聚焦时自动「切入」密码键盘（MimaKeyboardService）。
+ * 「切出」（非密码框唤起键盘时切回上一个输入法）由 MimaKeyboardService 的
+ * onStartInput 实现（IME 自主切走无需任何权限），见 isSwitchOutEnabled。
  *
- * 原理：Android 没有公开 API 让应用直接切换当前输入法，但持有 WRITE_SECURE_SETTINGS
- * （adb 授权的 signature 权限）后可以改写 Settings.Secure.DEFAULT_INPUT_METHOD：
- *  - 聚焦密码框：记住当前默认输入法 → 写入 Mima 键盘 → 收起再唤起软键盘让新输入法生效；
- *  - 失焦：把默认输入法写回原值。若聚焦期间用户手动切走（默认输入法已不是 Mima），尊重用户选择不回切。
+ * 切入模式（互斥，存于 app_prefs 的 switch_in_mode）：
+ *  - [MODE_ADB]：持有 WRITE_SECURE_SETTINGS（adb 授权）后改写
+ *    Settings.Secure.DEFAULT_INPUT_METHOD 直接切换；
+ *  - [MODE_PICKER]：当前键盘不是 Mima 时弹出系统输入法选择器，用户手动选一次；
+ *  - [MODE_OFF]：不自动切入。
  *
  * 使用：给密码输入框加 [autoMimaKeyboard]，例如
  *   OutlinedTextField(..., modifier = Modifier.fillMaxWidth().autoMimaKeyboard())
  */
 object ImeAutoSwitch {
 
-    private val handler = Handler(Looper.getMainLooper())
+    const val MODE_OFF = "off"
+    const val MODE_ADB = "adb"
+    const val MODE_PICKER = "picker"
 
-    /** 进入密码框之前保存的默认输入法，用于失焦后切回 */
+    /** 选择器切入后的宽限期：期间「自动切回」不生效，让用户用刚选的键盘填完当前表单。
+     *  截止时刻（elapsedRealtime 时钟），时长由设置页的宽限秒数决定 */
     @Volatile
-    private var previousIme: String? = null
+    var pickerGraceUntil: Long = 0L
 
-    /** 当前聚焦中的密码框数量：密码框之间移动（如密码/确认密码）不做来回切换 */
-    private var focusDepth = 0
+    /** 是否处于选择器切入宽限期内（期间自动切回静默） */
+    fun isWithinPickerGrace(): Boolean =
+        android.os.SystemClock.elapsedRealtime() < pickerGraceUntil
+
+    private val handler = Handler(Looper.getMainLooper())
 
     /** 是否已通过 adb 授权 WRITE_SECURE_SETTINGS */
     fun hasWriteSecureSettings(context: Context): Boolean =
@@ -53,11 +62,11 @@ object ImeAutoSwitch {
         null
     }
 
-    /** 是否具备自动切换的全部前置条件（开关开 + 已授权 + 键盘已启用） */
-    fun isReady(context: Context): Boolean =
-        DatabaseManager.isAutoSwitchImeEnabled(context) &&
-            hasWriteSecureSettings(context) &&
-            mimaImeId(context) != null
+    /** 当前默认输入法是否已是密码键盘（已是则无需切入） */
+    fun isMimaCurrent(context: Context): Boolean {
+        val mima = mimaImeId(context) ?: return false
+        return currentIme(context) == mima
+    }
 
     private fun currentIme(context: Context): String? =
         Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
@@ -74,16 +83,36 @@ object ImeAutoSwitch {
         }
     }
 
-    /** 密码框获得焦点：切到 Mima 键盘（深度计数避免密码框间移动来回切） */
+    /** ADB 模式核心动作：直写默认输入法为 Mima（后台可调用，无界面、不受 IMMS 弹窗限制）。返回是否成功 */
+    fun switchInViaAdb(context: Context): Boolean {
+        if (!hasWriteSecureSettings(context)) return false
+        val mima = mimaImeId(context) ?: return false
+        return try {
+            Settings.Secure.putString(
+                context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD, mima
+            )
+            true
+        } catch (_: SecurityException) {
+            false
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /** 密码框获得焦点入口：按当前切入模式分发 */
     fun onPasswordFocusGained(context: Context, view: View) {
-        focusDepth++
-        if (focusDepth > 1) return
-        if (!DatabaseManager.isAutoSwitchImeEnabled(context)) return
+        when (DatabaseManager.getSwitchInMode(context)) {
+            MODE_ADB -> switchInViaAdb(context, view)
+            MODE_PICKER -> pickerIfNeeded(context)
+        }
+    }
+
+    /** ADB 模式：写默认输入法为 Mima，并收起再延迟唤起软键盘让新输入法生效 */
+    private fun switchInViaAdb(context: Context, view: View) {
         if (!hasWriteSecureSettings(context)) return
         val mima = mimaImeId(context) ?: return
         val current = currentIme(context) ?: return
         if (current == mima) return
-        previousIme = current
         setIme(context, mima)
         // 旧键盘可能已随焦点弹出：先收起再延迟唤起，让新的默认输入法（Mima）生效。
         // 两次延迟唤起兜底对话框窗口尚未就绪的场景；showSoftInput 幂等，重复调用无害。
@@ -94,28 +123,16 @@ object ImeAutoSwitch {
         }
     }
 
-    /** 密码框失去焦点：切回进入前保存的输入法；若用户已手动切走则尊重其选择 */
-    fun onPasswordFocusLost(context: Context) {
-        focusDepth = maxOf(0, focusDepth - 1)
-        if (focusDepth > 0) return
-        if (!hasWriteSecureSettings(context)) return
+    /** 选择器模式：仅当前键盘不是 Mima 时弹出系统输入法选择器（用户取消则本次不切入） */
+    private fun pickerIfNeeded(context: Context) {
         val mima = mimaImeId(context) ?: return
-        val prev = previousIme ?: return
-        previousIme = null
-        // 聚焦期间用户手动切到了别的键盘（默认输入法已不是 Mima）：不回切
-        if (currentIme(context) != mima) return
-        setIme(context, prev)
-    }
-
-    /** 兜底复位（应用锁定等场景调用，避免计数残留导致后续不切换） */
-    fun reset() {
-        focusDepth = 0
-        previousIme = null
+        if (currentIme(context) == mima) return
+        context.getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
     }
 }
 
 /**
- * 密码输入框专用：聚焦时自动切到密码键盘，失焦后切回原键盘。
+ * 密码输入框专用：聚焦时按设置自动切入密码键盘（ADB 直切 / 弹窗选择器）。
  * 用法：modifier = Modifier.fillMaxWidth().autoMimaKeyboard()
  */
 fun Modifier.autoMimaKeyboard(): Modifier = composed {
@@ -124,8 +141,6 @@ fun Modifier.autoMimaKeyboard(): Modifier = composed {
     this.onFocusChanged { state ->
         if (state.isFocused) {
             ImeAutoSwitch.onPasswordFocusGained(context, view)
-        } else if (!state.hasFocus) {
-            ImeAutoSwitch.onPasswordFocusLost(context)
         }
     }
 }

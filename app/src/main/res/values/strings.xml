@@ -238,8 +238,25 @@
     <string name="keyboard_enable">Enable password keyboard</string>
     <string name="keyboard_enable_summary">Open system settings to enable this keyboard</string>
     <string name="keyboard_auto_switch">Auto-switch to password keyboard</string>
-    <string name="keyboard_auto_switch_summary">Switch to the password keyboard when a password field is focused, and switch back to the previous keyboard when done</string>
+    <string name="keyboard_auto_switch_summary">Switch to the password keyboard when a password field is focused</string>
     <string name="keyboard_auto_switch_need_enable">Enable the password keyboard in system settings first</string>
-    <string name="keyboard_auto_switch_need_grant">Requires permission. Connect to a computer and run:</string>
+    <string name="keyboard_auto_switch_need_grant">Requires permission. Tap the command to copy it:</string>
     <string name="keyboard_auto_switch_grant_cmd">adb shell pm grant com.lesspass.app android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="keyboard_switch_in_adb">ADB auto-switch</string>
+    <string name="keyboard_switch_in_picker">Input method picker</string>
+    <string name="keyboard_switch_in_picker_summary">Show the system input method picker when a password field is focused (only when the current keyboard is not the password keyboard). Android only allows the focused app to open the picker, so this works inside this app; use ADB auto-switch for other apps</string>
+    <string name="keyboard_switch_out">Auto-switch back</string>
+    <string name="keyboard_switch_out_summary">When the keyboard opens on a non-password field, switch back automatically</string>
+    <string name="keyboard_switch_out_target">Switch back to</string>
+    <string name="keyboard_switch_out_target_previous">Previous keyboard</string>
+    <string name="keyboard_switch_out_grace">Selector grace period</string>
+    <string name="keyboard_switch_out_grace_summary">Seconds to keep the keyboard chosen via the picker before auto-switch-back resumes</string>
+    <string name="keyboard_grace_seconds">%1$d s</string>
+    <string name="keyboard_copied">Copied</string>
+    <string name="keyboard_service_on">Enabled</string>
+    <string name="keyboard_service_off">Not enabled</string>
+    <string name="autofill_service_name">Mima Autofill</string>
+    <string name="keyboard_autofill">Autofill</string>
+    <string name="keyboard_autofill_summary">Fill password book entries into other apps\' login forms; also detects password fields in other apps for the ADB auto-switch. Requires being set as the system autofill service</string>
+    <string name="keyboard_autofill_open">Set as autofill service</string>
 </resources>

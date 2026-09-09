@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.DocumentsContract
+import com.lesspass.app.ImeAutoSwitch
 import com.lesspass.app.R
 import android.content.SharedPreferences
 import android.net.Uri
@@ -72,7 +73,10 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
         private const val KEY_CURRENT_DB_FILE = "current_db_file"
         private const val KEY_KEYBOARD_SHUFFLE = "keyboard_shuffle"
-        private const val KEY_AUTO_SWITCH_IME = "auto_switch_ime"
+        private const val KEY_SWITCH_IN_MODE = "switch_in_mode"
+        private const val KEY_AUTO_SWITCH_OUT = "auto_switch_out"
+        private const val KEY_SWITCH_OUT_TARGET = "switch_out_target"
+        private const val KEY_PICKER_GRACE_SECONDS = "picker_grace_seconds"
 
         /** 供密码键盘（IME）读取的密码本条目快照；仅内存，不持久化 */
         @Volatile
@@ -88,14 +92,50 @@ class DatabaseManager(private val context: Context) {
                 .edit().putBoolean(KEY_KEYBOARD_SHUFFLE, enabled).apply()
         }
 
-        /** 密码框聚焦时自动切到密码键盘、失焦后切回（默认开；实际生效还需 WRITE_SECURE_SETTINGS 授权） */
-        fun isAutoSwitchImeEnabled(context: Context): Boolean =
+        /**
+         * 密码键盘自动切入模式（互斥）：ImeAutoSwitch.MODE_OFF / MODE_ADB / MODE_PICKER。
+         * ADB 模式需 WRITE_SECURE_SETTINGS 授权后才可开启。
+         */
+        fun getSwitchInMode(context: Context): String =
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-                .getBoolean(KEY_AUTO_SWITCH_IME, true)
+                .getString(KEY_SWITCH_IN_MODE, ImeAutoSwitch.MODE_OFF) ?: ImeAutoSwitch.MODE_OFF
 
-        fun setAutoSwitchImeEnabled(context: Context, enabled: Boolean) {
+        fun setSwitchInMode(context: Context, mode: String) {
             context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_AUTO_SWITCH_IME, enabled).apply()
+                .edit().putString(KEY_SWITCH_IN_MODE, mode).apply()
+        }
+
+        /** 自动切回（切出）：非密码输入框唤起键盘时由 IME 自主切回上一个输入法，默认关 */
+        fun isSwitchOutEnabled(context: Context): Boolean =
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_AUTO_SWITCH_OUT, false)
+
+        fun setSwitchOutEnabled(context: Context, enabled: Boolean) {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_AUTO_SWITCH_OUT, enabled).apply()
+        }
+
+        /** 自动切回目标："previous"（上一个键盘，默认）或指定 IME id */
+        const val SWITCH_OUT_TARGET_PREVIOUS = "previous"
+
+        fun getSwitchOutTarget(context: Context): String =
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_SWITCH_OUT_TARGET, SWITCH_OUT_TARGET_PREVIOUS)
+                ?: SWITCH_OUT_TARGET_PREVIOUS
+
+        fun setSwitchOutTarget(context: Context, target: String) {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_SWITCH_OUT_TARGET, target).apply()
+        }
+
+        /** 选择器切入宽限期秒数（0-60，默认 5）：期间「自动切回」静默 */
+        fun getPickerGraceSeconds(context: Context): Int =
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_PICKER_GRACE_SECONDS, 5)
+
+        fun setPickerGraceSeconds(context: Context, seconds: Int) {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .edit().putInt(KEY_PICKER_GRACE_SECONDS, seconds.coerceIn(0, 60)).apply()
         }
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
 

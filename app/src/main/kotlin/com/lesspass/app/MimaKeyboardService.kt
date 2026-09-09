@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -11,6 +12,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -123,6 +125,32 @@ class MimaKeyboardService : InputMethodService() {
         return rootLayout
     }
 
+    override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(info, restarting)
+        // 自动切回（全局，设置可关）：键盘在非密码输入框上唤起时，自主切回原键盘。
+        // 切回目标：上一个输入法（switchToPreviousInputMethod）或设置中指定的输入法
+        // （switchToInputMethod，同为系统赋予 IME 的能力，无需任何权限）。
+        // 选择器切入宽限期内不切回（用户刚手动选完键盘，让其填完当前表单）。
+        if (DatabaseManager.isSwitchOutEnabled(this) && !isPasswordInput(info) &&
+            !ImeAutoSwitch.isWithinPickerGrace()
+        ) {
+            val target = DatabaseManager.getSwitchOutTarget(this)
+            if (target != DatabaseManager.SWITCH_OUT_TARGET_PREVIOUS && isImeEnabled(target)) {
+                switchInputMethod(target)
+            } else {
+                hideSelf() // 上一个键盘；或指定输入法不可用（被禁用/卸载）时退回上一个
+            }
+        }
+    }
+
+    /** 指定 ime id 是否为当前已启用的输入法 */
+    private fun isImeEnabled(id: String): Boolean = try {
+        getSystemService(InputMethodManager::class.java)
+            ?.enabledInputMethodList?.any { it.id == id } == true
+    } catch (_: Throwable) {
+        false
+    }
+
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         mode = MODE_LETTERS
@@ -138,6 +166,22 @@ class MimaKeyboardService : InputMethodService() {
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    /** 密码类输入框判定：文本密码 / 可见密码 / Web 密码 / 数字密码 */
+    private fun isPasswordInput(info: EditorInfo?): Boolean {
+        if (info == null) return false
+        val cls = info.inputType and InputType.TYPE_MASK_CLASS
+        val variation = info.inputType and InputType.TYPE_MASK_VARIATION
+        return when (cls) {
+            InputType.TYPE_CLASS_TEXT ->
+                variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                    variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                    variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+            InputType.TYPE_CLASS_NUMBER ->
+                variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            else -> false
+        }
+    }
 
     // ---------- 顶部条目芯片 ----------
 

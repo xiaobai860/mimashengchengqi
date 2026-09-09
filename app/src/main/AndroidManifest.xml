@@ -7,6 +7,9 @@
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- 无障碍监听到第三方应用密码框后弹出系统输入法选择器：后台弹系统弹窗需要悬浮窗权限放行 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -23,6 +26,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- 透明中转页：Autofill 检测到第三方密码框且切入模式为弹窗选择器时，
+             借助悬浮窗权限的后台启动豁免，短暂取得焦点以唤起系统输入法选择器 -->
+        <activity
+            android:name=".SwitchPickerActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -44,6 +56,20 @@
             <meta-data
                 android:name="android.view.im"
                 android:resource="@xml/method" />
+        </service>
+
+        <!-- 系统自动填充：填充密码本条目到其它应用 + 第三方密码框检测（按切入模式自动切换键盘） -->
+        <service
+            android:name=".MimaAutofillService"
+            android:label="@string/autofill_service_name"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.autofill"
+                android:resource="@xml/autofill_service_config" />
         </service>
     </application>
 </manifest>
