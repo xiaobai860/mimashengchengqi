@@ -56,6 +56,8 @@ class DatabaseManager(private val context: Context) {
 
     companion object {
         private const val HISTORY_GROUP_TITLE = "历史记录"
+        /** 本应用密码本专属分组（根目录下，与历史记录分组平级），用于把本应用保存的密码与密码文件里其它密码区分开 */
+        private const val VAULT_GROUP_TITLE = "密码生成器密码本"
         private const val MAX_HISTORY = 50
         private const val PREF_NAME = "app_prefs"
         private const val KEY_HAS_PASSWORD = "has_password"
@@ -69,6 +71,21 @@ class DatabaseManager(private val context: Context) {
         private const val KEY_PREVENT_SCREENSHOT = "prevent_screenshot"
         private const val KEY_DB_EXTERNAL_URI = "db_external_uri"
         private const val KEY_CURRENT_DB_FILE = "current_db_file"
+        private const val KEY_KEYBOARD_SHUFFLE = "keyboard_shuffle"
+
+        /** 供密码键盘（IME）读取的密码本条目快照；仅内存，不持久化 */
+        @Volatile
+        var keyboardEntries: List<KeyboardEntrySnapshot> = emptyList()
+            private set
+
+        fun isKeyboardShuffleEnabled(context: Context): Boolean =
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_KEYBOARD_SHUFFLE, false)
+
+        fun setKeyboardShuffleEnabled(context: Context, enabled: Boolean) {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_KEYBOARD_SHUFFLE, enabled).apply()
+        }
         private val HardwareKeyNoOp: (com.kunzisoft.keepass.hardware.HardwareKey, ByteArray?) -> ByteArray = { _, _ -> ByteArray(0) }
 
         @Volatile
@@ -414,6 +431,7 @@ class DatabaseManager(private val context: Context) {
                 KdfFactory.aesKdf.setKeyRounds(params, 200000L)
             }
             ensureHistoryGroupExists(db)
+            ensureVaultGroupExists(db)
 
             // 先保存到临时变量，只有成功后才提交状态变更
             // 注意：即使无密码也必须派生主密钥（否则文件头缺少有效加密信息，
@@ -1464,6 +1482,7 @@ class DatabaseManager(private val context: Context) {
         database = null
         isUnlocked = false
         savedMasterPassword = null
+        keyboardEntries = emptyList()
         // 必须一并清空当前打开来源：saveDatabase() 依据 currentOpenUri 决定落盘目标
         // （非 null 时写回 URI，否则写本地 dbFile）。若清除数据/锁定后残留旧的外部 URI，
         // 后续 createDatabase() 会把新库写到该失效 URI，而自检却读本地 dbFile，
@@ -1528,10 +1547,20 @@ class DatabaseManager(private val context: Context) {
     // ==================== 密码本操作 ====================
 
     fun getPasswordBookEntries(): List<EntryKDBX> {
-        val db = database ?: return emptyList()
-        val root = db.rootGroup ?: return emptyList()
+        val db = database ?: run {
+            keyboardEntries = emptyList()
+            return emptyList()
+        }
+        val vaultGroup = getVaultGroup(db) ?: run {
+            keyboardEntries = emptyList()
+            return emptyList()
+        }
         val entries = mutableListOf<EntryKDBX>()
-        collectEntriesExcluding(root, entries, getHistoryGroup(db))
+        collectEntries(vaultGroup, entries)
+        // 同步密码键盘（IME）的只读缓存：应用每次读取密码本即更新，锁定时清空
+        keyboardEntries = entries.map {
+            KeyboardEntrySnapshot(it.title, it.username, String(it.password), it.url)
+        }
         return entries
     }
 
@@ -1557,8 +1586,9 @@ class DatabaseManager(private val context: Context) {
         }
         // 版本号：使用 kdbx 自带自定义字段存储，便于查看历史时识别同一网站的不同版本
         entry.putField(Field(VERSION_FIELD, ProtectedString(false, version.toString())))
-        db.rootGroup?.addChildEntry(entry)
+        getVaultGroup(db)?.addChildEntry(entry) ?: db.rootGroup?.addChildEntry(entry)
         saveDatabase()
+        refreshKeyboardCache()
         return entry
     }
 
@@ -1587,6 +1617,7 @@ class DatabaseManager(private val context: Context) {
         val nextVersion = if (version > 1) version else getVersionFromEntry(entry) + 1
         entry.putField(Field(VERSION_FIELD, ProtectedString(false, nextVersion.toString())))
         saveDatabase()
+        refreshKeyboardCache()
     }
 
     /** 深拷贝一条条目，用于在被覆盖前存入其自身历史（KDBX 原生 history 字段） */
@@ -1600,10 +1631,9 @@ class DatabaseManager(private val context: Context) {
     /** 在密码本（根分组，排除历史记录组）中查找相同网站(url)和用户名(username)的条目（用于冲突检测） */
     fun findVaultEntry(site: String, username: String): EntryKDBX? {
         val db = database ?: return null
-        val root = db.rootGroup ?: return null
-        val historyGroup = getHistoryGroup(db)
+        val vaultGroup = getVaultGroup(db) ?: return null
         val entries = mutableListOf<EntryKDBX>()
-        collectEntriesExcluding(root, entries, historyGroup)
+        collectEntries(vaultGroup, entries)
         return entries.firstOrNull { it.url == site && it.username == username }
     }
 
@@ -1673,6 +1703,102 @@ class DatabaseManager(private val context: Context) {
         return true
     }
 
+    // ==================== 密码键盘（IME）数据共享 ====================
+
+    /** 供系统密码键盘读取的密码本条目快照（仅驻留内存，不落盘） */
+    data class KeyboardEntrySnapshot(
+        val title: String,
+        val username: String,
+        val password: String,
+        val url: String,
+    )
+
+    /** 刷新键盘缓存（在数据库解锁或密码本条目变动后调用） */
+    fun refreshKeyboardCache() {
+        keyboardEntries = if (isUnlocked) {
+            getPasswordBookEntries().map {
+                KeyboardEntrySnapshot(it.title, it.username, String(it.password), it.url)
+            }
+        } else emptyList()
+    }
+
+    // ==================== 密码库（整个 kdbx 文件）管理 ====================
+
+    /** 读取某分组下的子分组；group 为 null 时读取根分组 */
+    fun getChildGroups(group: GroupKDBX?): List<GroupKDBX> {
+        val g = group ?: database?.rootGroup ?: return emptyList()
+        return g.getChildGroups() as? List<GroupKDBX> ?: emptyList()
+    }
+
+    /** 读取某分组下的条目；group 为 null 时读取根分组 */
+    fun getChildEntries(group: GroupKDBX?): List<EntryKDBX> {
+        val g = group ?: database?.rootGroup ?: return emptyList()
+        return g.getChildEntries() as? List<EntryKDBX> ?: emptyList()
+    }
+
+    suspend fun createGroup(parent: GroupKDBX?, title: String): GroupKDBX? {
+        val db = database ?: return null
+        val group = db.createGroup() ?: return null
+        group.title = title
+        (parent ?: db.rootGroup)?.addChildGroup(group)
+        saveDatabase()
+        return group
+    }
+
+    suspend fun renameGroup(group: GroupKDBX, title: String): Boolean {
+        group.title = title
+        saveDatabase()
+        return true
+    }
+
+    suspend fun deleteGroup(group: GroupKDBX): Boolean {
+        val root = database?.rootGroup ?: return false
+        if (group == root) return false
+        val parent = group.parent as? GroupKDBX ?: root
+        parent.removeChildGroup(group)
+        saveDatabase()
+        return true
+    }
+
+    suspend fun createEntryInGroup(
+        parent: GroupKDBX?,
+        title: String,
+        username: String,
+        password: String,
+        url: String,
+        notes: String,
+    ): EntryKDBX? {
+        val db = database ?: return null
+        val entry = db.createEntry() ?: return null
+        entry.title = title
+        entry.username = username
+        entry.password = password.toCharArray()
+        entry.url = url
+        entry.notes = notes
+        (parent ?: db.rootGroup)?.addChildEntry(entry)
+        saveDatabase()
+        refreshKeyboardCache()
+        return entry
+    }
+
+    suspend fun updateEntryFields(
+        entry: EntryKDBX,
+        title: String,
+        username: String,
+        password: String,
+        url: String,
+        notes: String,
+    ): Boolean {
+        entry.title = title
+        entry.username = username
+        entry.password = password.toCharArray()
+        entry.url = url
+        entry.notes = notes
+        saveDatabase()
+        refreshKeyboardCache()
+        return true
+    }
+
     // ==================== 通用操作 ====================
 
     fun getAllEntries(): List<EntryKDBX> {
@@ -1694,6 +1820,7 @@ class DatabaseManager(private val context: Context) {
         val parent = entry.parent as? GroupKDBX
         parent?.removeChildEntry(entry)
         saveDatabase()
+        refreshKeyboardCache()
         return true
     }
 
@@ -1714,6 +1841,22 @@ class DatabaseManager(private val context: Context) {
 
         val group = db.createGroup()
         group.title = HISTORY_GROUP_TITLE
+        root.addChildGroup(group)
+        return group
+    }
+
+    /** 返回本应用密码本专属分组（不存在则创建） */
+    private fun getVaultGroup(db: DatabaseKDBX): GroupKDBX? {
+        return findGroupByTitle(db.rootGroup, VAULT_GROUP_TITLE) ?: ensureVaultGroupExists(db)
+    }
+
+    private fun ensureVaultGroupExists(db: DatabaseKDBX): GroupKDBX? {
+        val root = db.rootGroup ?: return null
+        val existing = findGroupByTitle(root, VAULT_GROUP_TITLE)
+        if (existing != null) return existing
+
+        val group = db.createGroup()
+        group.title = VAULT_GROUP_TITLE
         root.addChildGroup(group)
         return group
     }

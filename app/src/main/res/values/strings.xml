@@ -207,4 +207,32 @@
     <string name="fp_prompt_title_enable">Enable Fingerprint Unlock</string>
     <string name="fp_prompt_subtitle_enable">Verify your fingerprint to save the unlock credential</string>
     <string name="internal_storage">Internal storage</string>
+    <!-- Vault Manager (manage whole kdbx file) -->
+    <string name="vault_manager_title">Vault Manager</string>
+    <string name="vault_manager_empty">Empty</string>
+    <string name="add_group">Add Group</string>
+    <string name="add_group_title">New Group</string>
+    <string name="group_name">Group name</string>
+    <string name="rename_group">Rename Group</string>
+    <string name="delete_group">Delete Group</string>
+    <string name="delete_group_confirm">Delete this group and all its contents?</string>
+    <string name="add_entry">Add Entry</string>
+    <string name="new_entry">New Entry</string>
+    <string name="entry_title">Title</string>
+    <string name="edit_entry">Edit Entry</string>
+    <string name="delete_entry_confirm">Delete this entry?</string>
+    <string name="no_title">No title</string>
+    <string name="add">Add</string>
+    <string name="back">Back</string>
+    <!-- Password Keyboard (IME) -->
+    <string name="keyboard_name">Password Keyboard</string>
+    <string name="keyboard_locked_hint">Unlock the password book in the app first</string>
+    <string name="keyboard_open_app">Open App</string>
+    <string name="keyboard_entries_hint">Tap an entry to fill username &amp; password</string>
+    <string name="keyboard_space">Space</string>
+    <string name="keyboard_no_title">No title</string>
+    <string name="keyboard_shuffle">Shuffle keyboard</string>
+    <string name="keyboard_shuffle_summary">Randomize key positions</string>
+    <string name="keyboard_enable">Enable password keyboard</string>
+    <string name="keyboard_enable_summary">Open system settings to enable this keyboard</string>
 </resources>

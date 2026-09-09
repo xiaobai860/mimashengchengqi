@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // ⚠️ AGP 9 起 Kotlin 由插件内置提供（KGP 2.2.10），不可再声明
 // org.jetbrains.kotlin.android，否则报 "Cannot add extension with name 'kotlin'"。
 // 需要更高版本 KGP 时改在根 build.gradle.kts 的 buildscript classpath 里声明。
@@ -18,15 +20,23 @@ android {
         versionName = "2.12"
     }
 
-    // 签名配置从用户级 ~/.gradle/gradle.properties 读取（密钥库在项目外 E:\Android\paibanrili），
-    // 不写入本仓库，避免被提交到 GitHub。
+    // 签名配置：优先读取项目根目录 keystore.properties（已 gitignore，不进仓库），
+    // 文件不存在时回退命令行 -P 参数。密钥库在项目外 D:\Android\paibanrili。
+    val keystoreProps = Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { stream -> load(stream) }
+    }
+    fun releaseProp(name: String): String? =
+        keystoreProps.getProperty(name)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: (findProperty(name) as? String)?.takeIf { it.isNotEmpty() }
+
     signingConfigs {
         create("release") {
-            val storeFileProp = findProperty("RELEASE_STORE_FILE") as? String
+            val storeFileProp = releaseProp("RELEASE_STORE_FILE")
             storeFile = if (storeFileProp != null) file(storeFileProp) else null
-            storePassword = findProperty("RELEASE_STORE_PASSWORD") as? String
-            keyAlias = findProperty("RELEASE_KEY_ALIAS") as? String
-            keyPassword = findProperty("RELEASE_KEY_PASSWORD") as? String
+            storePassword = releaseProp("RELEASE_STORE_PASSWORD")
+            keyAlias = releaseProp("RELEASE_KEY_ALIAS")
+            keyPassword = releaseProp("RELEASE_KEY_PASSWORD")
         }
     }
 

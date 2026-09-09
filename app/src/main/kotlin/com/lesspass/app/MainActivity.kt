@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import java.io.File
@@ -219,6 +220,7 @@ fun MainScreen(
     }
 
     var selectedTab by remember { mutableIntStateOf(0) }
+    var showVaultManager by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -274,25 +276,25 @@ fun MainScreen(
                     icon = { Icon(Icons.Filled.Lock, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_generate)) },
                     selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 }
+                    onClick = { selectedTab = 0; showVaultManager = false }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_history)) },
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 }
+                    onClick = { selectedTab = 1; showVaultManager = false }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Storage, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_vault)) },
                     selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 }
+                    onClick = { selectedTab = 2; showVaultManager = false }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_settings)) },
                     selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 }
+                    onClick = { selectedTab = 3; showVaultManager = false }
                 )
             }
         }
@@ -324,10 +326,16 @@ fun MainScreen(
                         )
                     }
                 )
-                2 -> PasswordBookScreen(
+                2 -> if (showVaultManager) {
+                    VaultManagerScreen(
+                        dbManager = dbManager,
+                        onBack = { showVaultManager = false }
+                    )
+                } else PasswordBookScreen(
                     dbManager = dbManager,
                     onCopy = { copyToClipboard(context, it) },
-                    onViewHistory = { historyEntry = it }
+                    onViewHistory = { historyEntry = it },
+                    onOpenVaultManager = { showVaultManager = true }
                 )
                 3 -> SettingsScreen(
                     dbManager = dbManager,
@@ -951,6 +959,7 @@ fun SettingsScreen(
     var showCreateNewDialog by remember { mutableStateOf(false) }
     var migrationResultMessage by remember { mutableStateOf<String?>(null) }
     var showMigrationResultDialog by remember { mutableStateOf(false) }
+    var shuffle by remember { mutableStateOf(DatabaseManager.isKeyboardShuffleEnabled(context)) }
 
     fun refreshFileList() {
         kdbxFileList = dbManager.listKdbxFiles()
@@ -1515,6 +1524,65 @@ fun SettingsScreen(
                     Icon(Icons.Filled.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.clear_all_data))
+                }
+            }
+        }
+
+        // ==================== 密码键盘 ====================
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MimaShapes.card,
+            tonalElevation = 1.dp
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Keyboard,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        stringResource(R.string.keyboard_name),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.keyboard_shuffle))
+                        Text(
+                            stringResource(R.string.keyboard_shuffle_summary),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = shuffle,
+                        onCheckedChange = {
+                            shuffle = it
+                            DatabaseManager.setKeyboardShuffleEnabled(context, it)
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = MimaShapes.button
+                ) {
+                    Icon(Icons.Filled.Keyboard, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.keyboard_enable))
                 }
             }
         }

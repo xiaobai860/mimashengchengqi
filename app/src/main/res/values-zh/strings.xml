@@ -207,4 +207,32 @@
     <string name="fp_prompt_title_enable">启用指纹解锁</string>
     <string name="fp_prompt_subtitle_enable">验证指纹以保存解锁凭据</string>
     <string name="internal_storage">内部存储</string>
+    <!-- Vault Manager（管理整个 kdbx 文件） -->
+    <string name="vault_manager_title">密码库管理</string>
+    <string name="vault_manager_empty">空</string>
+    <string name="add_group">添加分组</string>
+    <string name="add_group_title">新建分组</string>
+    <string name="group_name">分组名称</string>
+    <string name="rename_group">重命名分组</string>
+    <string name="delete_group">删除分组</string>
+    <string name="delete_group_confirm">删除该分组及其全部内容？</string>
+    <string name="add_entry">添加条目</string>
+    <string name="new_entry">新建条目</string>
+    <string name="entry_title">标题</string>
+    <string name="edit_entry">编辑条目</string>
+    <string name="delete_entry_confirm">删除该条目？</string>
+    <string name="no_title">无标题</string>
+    <string name="add">添加</string>
+    <string name="back">返回</string>
+    <!-- 密码键盘（IME） -->
+    <string name="keyboard_name">密码键盘</string>
+    <string name="keyboard_locked_hint">请先在本应用解锁密码本</string>
+    <string name="keyboard_open_app">打开应用</string>
+    <string name="keyboard_entries_hint">点击条目即可填入用户名和密码</string>
+    <string name="keyboard_space">空格</string>
+    <string name="keyboard_no_title">无标题</string>
+    <string name="keyboard_shuffle">键盘乱序</string>
+    <string name="keyboard_shuffle_summary">随机打乱按键位置</string>
+    <string name="keyboard_enable">启用密码键盘</string>
+    <string name="keyboard_enable_summary">打开系统设置以启用本键盘</string>
 </resources>

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +45,7 @@ fun PasswordBookScreen(
     dbManager: DatabaseManager,
     onCopy: (String) -> Unit,
     onViewHistory: (EntryKDBX) -> Unit,
+    onOpenVaultManager: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -80,6 +82,11 @@ fun PasswordBookScreen(
             ),
             placeholder = { Text(stringResource(R.string.search_vault_hint)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                IconButton(onClick = onOpenVaultManager) {
+                    Icon(Icons.Filled.Folder, contentDescription = stringResource(R.string.vault_manager_title))
+                }
+            },
             singleLine = true
         )
 
