@@ -21,8 +21,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.lesspass.app.ui.theme.MimaShapes
+import com.lesspass.app.ui.theme.brandGradientBrush
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -55,12 +58,25 @@ fun HistoryScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Filled.History,
-                contentDescription = null,
-                modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
+            Box(
+                modifier = Modifier
+                    .size(88.dp)
+                    .background(
+                        brandGradientBrush(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        ),
+                        MimaShapes.chip
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.History,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.history_empty),
@@ -109,7 +125,7 @@ private fun HistoryCard(
     var showMp by remember { mutableStateOf(false) }
     val masterPassword = dbManager.getMasterPasswordFromEntry(entry)
     val version = dbManager.getVersionFromEntry(entry)
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = MimaShapes.card) {
         Column(modifier = Modifier.padding(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

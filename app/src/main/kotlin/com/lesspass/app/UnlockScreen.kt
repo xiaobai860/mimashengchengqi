@@ -20,8 +20,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.lesspass.app.ui.theme.MimaShapes
+import com.lesspass.app.ui.theme.brandGradientBrush
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.res.stringResource
@@ -58,24 +62,46 @@ fun UnlockScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            Icons.Filled.Lock,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.unlock_heading),
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            if (hasDatabase) stringResource(R.string.unlock_subtitle_has) else stringResource(R.string.unlock_subtitle_create),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        // 设计稿 .hero：品牌渐变英雄头（跟随动态色），承载锁图标 + 引导文案
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brandGradientBrush(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.tertiary
+                    ),
+                    MimaShapes.card
+                )
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Filled.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp),
+                    tint = Color.White
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.unlock_heading),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (hasDatabase) stringResource(R.string.unlock_subtitle_has) else stringResource(R.string.unlock_subtitle_create),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.85f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
         Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(
@@ -142,7 +168,7 @@ fun UnlockScreen(
             },
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(4.dp)
+            shape = MimaShapes.button
         ) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -211,7 +237,7 @@ private fun BiometricButton(
             }
         },
         modifier = Modifier.fillMaxWidth().height(44.dp),
-        shape = RoundedCornerShape(4.dp)
+        shape = MimaShapes.button
     ) {
         Icon(Icons.Filled.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))

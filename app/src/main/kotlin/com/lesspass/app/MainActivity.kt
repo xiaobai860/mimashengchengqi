@@ -32,8 +32,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import com.lesspass.app.ui.theme.MimaShapes
+import com.lesspass.app.ui.theme.brandGradientBrush
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -288,8 +292,12 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            when (selectedTab) {
+        Crossfade(
+            targetState = selectedTab,
+            modifier = Modifier.padding(paddingValues),
+            animationSpec = tween(durationMillis = 220)
+        ) { tab ->
+            when (tab) {
                 0 -> GenerateScreen(
                     dbManager = dbManager,
                     onSave = { s, u, p, mp, v -> saveToVault(s, u, p, mp, v) },
@@ -550,19 +558,45 @@ fun GenerateScreen(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 设计稿 v4：屏幕顶部语义大标题 + 副标题说明
-        Text(
-            text = stringResource(R.string.generate_hero_title),
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-            )
-        )
-        Text(
-            text = stringResource(R.string.generate_hero_sub),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        // 设计稿 .hero：渐变圆角色块（跟随动态色）承载钥匙图标 + 语义标题
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .background(
+                        brandGradientBrush(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.tertiary
+                        ),
+                        MimaShapes.card
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.VpnKey,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Column {
+                Text(
+                    text = stringResource(R.string.generate_hero_title),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                )
+                Text(
+                    text = stringResource(R.string.generate_hero_sub),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         OutlinedTextField(
             value = site,
             onValueChange = { site = it },
@@ -640,7 +674,7 @@ fun GenerateScreen(
         // 取代原先平铺散落的控件，降低信息密度压力。
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = MimaShapes.card,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 1.dp
         ) {
@@ -740,9 +774,9 @@ fun GenerateScreen(
             },
             enabled = algorithmSupported,
             modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(8.dp)
+            shape = MimaShapes.button
         ) {
-            Icon(Icons.Filled.Settings, contentDescription = null)
+            Icon(Icons.Filled.AutoAwesome, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(
                 text = if (algorithmSupported) stringResource(R.string.generate) else stringResource(R.string.self_testing),
@@ -789,44 +823,71 @@ fun GenerateScreen(
             }
         }
 
-        if (password != null) {
-            // 设计稿 .pw-card：surface-variant 底色 + 圆角 12dp + 等宽字体，居中展示生成结果
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Text(
-                    text = password!!,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        textAlign = TextAlign.Center
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                )
-            }
+        // 设计稿 .pw-card：品牌强调大卡（primaryContainer 底 + 圆角 16dp + 等宽字体），
+        // 右上角悬浮复制按钮；生成结果显隐带展开/淡入动画。
+        AnimatedVisibility(
+            visible = password != null,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(200)),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            val pwd = password ?: return@AnimatedVisibility
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MimaShapes.card,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                        Text(
+                            text = pwd,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            ),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 40.dp)
+                        )
+                        IconButton(
+                            onClick = { copyToClipboard(context, pwd) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(36.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                                    MimaShapes.pill
+                                )
+                        ) {
+                            Icon(
+                                Icons.Filled.ContentCopy,
+                                contentDescription = stringResource(R.string.copy_desc),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
 
-            // 生成密码的强度显示
-            val pwdStrength = remember(password) { evaluatePasswordStrength(password!!) }
-            Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                LinearProgressIndicator(
-                    progress = { pwdStrength.score },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = pwdStrength.color,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                )
-                Text(
-                    text = stringResource(R.string.password_strength_of) + stringResource(strengthLabelRes(pwdStrength.level)),
-                    fontSize = 12.sp,
-                    color = pwdStrength.color,
-                    modifier = Modifier.padding(top = 4.dp, start = 2.dp)
-                )
+                // 生成密码的强度显示
+                val pwdStrength = remember(pwd) { evaluatePasswordStrength(pwd) }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    LinearProgressIndicator(
+                        progress = { pwdStrength.score },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(MimaShapes.pill),
+                        color = pwdStrength.color,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    )
+                    Text(
+                        text = stringResource(R.string.password_strength_of) + stringResource(strengthLabelRes(pwdStrength.level)),
+                        fontSize = 12.sp,
+                        color = pwdStrength.color,
+                        modifier = Modifier.padding(top = 4.dp, start = 2.dp)
+                    )
+                }
             }
         }
     }
@@ -966,16 +1027,27 @@ fun SettingsScreen(
         // ==================== 外观（Material You 动态取色） ====================
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = MimaShapes.card,
             tonalElevation = 1.dp
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 // 设计稿 .sec-title：区块小标题用弱化 labelMedium
-                Text(
-                    stringResource(R.string.appearance_settings),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Palette,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        stringResource(R.string.appearance_settings),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
 
                 // 主题模式：跟随系统 / 亮色 / 暗色
@@ -1057,15 +1129,26 @@ fun SettingsScreen(
         // ==================== 安全设置 ====================
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = MimaShapes.card,
             tonalElevation = 1.dp
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    stringResource(R.string.security_settings),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        stringResource(R.string.security_settings),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
 
                 // 超时锁定
@@ -1243,7 +1326,7 @@ fun SettingsScreen(
         // ==================== 密码本状态（整合文件列表） ====================
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = MimaShapes.card,
             tonalElevation = 1.dp
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -1253,11 +1336,22 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        stringResource(R.string.vault_status),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Storage,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            stringResource(R.string.vault_status),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     TextButton(
                         onClick = { refreshFileList() },
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
@@ -1361,7 +1455,7 @@ fun SettingsScreen(
                 OutlinedButton(
                     onClick = { showClearDataDialog = true },
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    shape = RoundedCornerShape(4.dp),
+                    shape = MimaShapes.button,
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -1378,7 +1472,7 @@ fun SettingsScreen(
         OutlinedButton(
             onClick = { showChangePasswordDialog = true },
             modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(4.dp)
+            shape = MimaShapes.button
         ) {
             Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
@@ -1391,7 +1485,7 @@ fun SettingsScreen(
                 launchFolderPicker()
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(4.dp)
+            shape = MimaShapes.button
         ) {
             Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
@@ -1435,7 +1529,7 @@ fun SettingsScreen(
                 }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(4.dp)
+            shape = MimaShapes.button
         ) {
             Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
@@ -1936,8 +2030,8 @@ private fun CounterStepper(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(40.dp)
-                .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp)),
+                .border(1.dp, MaterialTheme.colorScheme.primary, MimaShapes.button)
+                .background(MaterialTheme.colorScheme.primary, MimaShapes.button),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
@@ -1991,14 +2085,14 @@ private fun SecondaryActionButton(
         FilledTonalButton(
             onClick = onClick,
             modifier = modifier.height(48.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = MimaShapes.button,
             content = { label() }
         )
     } else {
         OutlinedButton(
             onClick = onClick,
             modifier = modifier.height(48.dp),
-            shape = RoundedCornerShape(8.dp),
+            shape = MimaShapes.button,
             content = { label() }
         )
     }

@@ -25,8 +25,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.lesspass.app.ui.theme.MimaShapes
+import com.lesspass.app.ui.theme.brandGradientBrush
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
@@ -101,12 +104,25 @@ fun PasswordBookScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Lock,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(88.dp)
+                        .background(
+                            brandGradientBrush(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.tertiaryContainer
+                            ),
+                            MimaShapes.chip
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = stringResource(R.string.vault_empty_hint),
@@ -156,7 +172,8 @@ fun PasswordBookScreen(
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),
             containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            shape = MimaShapes.chip
         ) {
             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_manually))
         }
@@ -198,7 +215,8 @@ private fun PasswordBookCard(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        shape = MimaShapes.card
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             Row(

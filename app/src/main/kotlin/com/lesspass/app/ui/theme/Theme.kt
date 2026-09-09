@@ -68,6 +68,7 @@ fun MimaTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = MaterialTheme.typography,
+        shapes = MimaMaterialShapes,
         content = content
     )
 }
