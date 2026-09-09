@@ -1,5 +1,6 @@
 package com.lesspass.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -73,62 +73,72 @@ fun VaultManagerScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        if (stack.isEmpty()) stringResource(R.string.vault_manager_title)
-                        else currentGroup?.title ?: ""
-                    )
-                },
-                navigationIcon = {
-                    if (stack.isNotEmpty()) {
-                        IconButton(onClick = { stack = stack.dropLast(1) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                        }
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showAddMenu = true }) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add))
-            }
-        }
-    ) { padding ->
-        if (groups.isEmpty() && entries.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
+    // 拦截系统返回键：分组栈逐级返回，栈空时回到密码本，而不是退出应用
+    BackHandler {
+        if (stack.isNotEmpty()) stack = stack.dropLast(1) else onBack()
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 行内标题栏：不使用自带状态栏 insets 的 TopAppBar，与一级页面内容起始位置对齐
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(
+                    onClick = { if (stack.isNotEmpty()) stack = stack.dropLast(1) else onBack() }
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                }
                 Text(
-                    stringResource(R.string.vault_manager_empty),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (stack.isEmpty()) stringResource(R.string.vault_manager_title)
+                    else currentGroup?.title ?: "",
+                    style = MaterialTheme.typography.titleLarge
                 )
             }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxSize().padding(padding)
-            ) {
-                items(groups, key = { it.id.toString() }) { group ->
-                    VaultGroupRow(
-                        group = group,
-                        onClick = { stack = stack + group },
-                        onRename = { renameGroup = group },
-                        onDelete = { deleteGroupTarget = group },
+            if (groups.isEmpty() && entries.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(R.string.vault_manager_empty),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                items(entries, key = { it.id.toString() }) { entry ->
-                    VaultEntryRow(
-                        entry = entry,
-                        onClick = { editEntry = entry },
-                        onDelete = { deleteEntryTarget = entry },
-                    )
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(groups, key = { it.id.toString() }) { group ->
+                        VaultGroupRow(
+                            group = group,
+                            onClick = { stack = stack + group },
+                            onRename = { renameGroup = group },
+                            onDelete = { deleteGroupTarget = group },
+                        )
+                    }
+                    items(entries, key = { it.id.toString() }) { entry ->
+                        VaultEntryRow(
+                            entry = entry,
+                            onClick = { editEntry = entry },
+                            onDelete = { deleteEntryTarget = entry },
+                        )
+                    }
                 }
             }
+        }
+        FloatingActionButton(
+            onClick = { showAddMenu = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add))
         }
     }
 

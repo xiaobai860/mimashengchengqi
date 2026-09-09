@@ -2,6 +2,7 @@ package com.lesspass.app
 
 import android.content.Intent
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -19,7 +20,6 @@ import com.lesspass.app.data.DatabaseManager
 import com.lesspass.app.ui.theme.MimaShapes
 
 /** 密码键盘设置页（从设置页「安全设置」区块进入）：键盘乱序（英文+数字）与启用键盘。 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeyboardSettingsScreen(
     onBack: () -> Unit,
@@ -27,22 +27,26 @@ fun KeyboardSettingsScreen(
     val context = LocalContext.current
     var shuffle by remember { mutableStateOf(DatabaseManager.isKeyboardShuffleEnabled(context)) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.keyboard_name)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                }
-            )
+    // 拦截系统返回键：返回设置页而不是退出应用
+    BackHandler { onBack() }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 行内标题栏：不使用自带状态栏 insets 的 TopAppBar，与一级页面内容起始位置对齐
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+            }
+            Text(stringResource(R.string.keyboard_name), style = MaterialTheme.typography.titleLarge)
         }
-    ) { padding ->
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+                .fillMaxWidth()
+                .weight(1f)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

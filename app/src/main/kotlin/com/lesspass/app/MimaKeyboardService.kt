@@ -25,7 +25,7 @@ import kotlin.random.Random
  * 布局：
  *  - 字母页：标准 QWERTY 键位 + Shift 三态（⇧ 单次 / ⇪ 锁定，全部字母行联动）+ 退格长按连删；
  *  - 符号页（?123）：覆盖常用密码特殊字符集，无冷门符号；
- *  - 数字页（123）：1-9 拨号盘式大按键，0/⌫ 在底行，便于快速输入数字；
+ *  - 数字页（123）：1-0 拨号盘式大按键（乱序时 10 个数字全随机，0 可能在底行），⌫ 在底行；
  *  - 三页通过底行模式键互切；
  *  - 所有页面统一 3 行键区 + 1 行底行、统一行高，页面切换时键盘总高度不变；
  *  - 设置中可开启「键盘乱序」（随机打乱英文字母键位与字母页顶部数字键位）；
@@ -135,7 +135,8 @@ class MimaKeyboardService : InputMethodService() {
         val shuffle = DatabaseManager.isKeyboardShuffleEnabled(this)
         // 乱序：每次键盘弹出都在 QWERTY 基础上重新洗牌（字母 26 键 + 数字 10 键随机位置）
         shuffledLetters = if (shuffle) qwertyBase.shuffled(Random) else qwertyBase
-        shuffledDigits = (1..9).map { it.toString() }.let { if (shuffle) it.shuffled(Random) else it }
+        // 数字 1-0 全部参与乱序：前 9 个进三行大键，第 10 个落在底行中列
+        shuffledDigits = ((1..9).map { it.toString() } + "0").let { if (shuffle) it.shuffled(Random) else it }
 
         entryRow.removeAllViews()
         val entries = DatabaseManager.keyboardEntries
@@ -192,11 +193,11 @@ class MimaKeyboardService : InputMethodService() {
     private fun buildSymbolRows() {
         addSymbolRow(listOf("@", "#", "$", "%", "&", "*", "-", "+", "(", ")"))
         val quote = '"'.toString()
-        addSymbolRow(listOf("!", "?", "^", "~", "|", "_", "=", "/"), lead = 0.5f, trail = 0.5f)
+        addSymbolRow(listOf("!", "?", "^", "~", "`", "|", "\u005C", "_", "="), lead = 0.5f, trail = 0.5f)
 
         val row3 = newRow()
         row3.addView(spacer(1.5f))
-        listOf("[", "]", "'", quote, ":", ";", ",").forEach { row3.addView(symbolButton(it)) }
+        listOf("[", "]", "'", quote, ":", ",", ".").forEach { row3.addView(symbolButton(it)) }
         row3.addView(backspaceButton(1.5f))
         keyboardLayout.addView(row3)
     }
@@ -215,12 +216,24 @@ class MimaKeyboardService : InputMethodService() {
     private fun buildBottomRow(): LinearLayout {
         val row = newRow()
         if (mode == MODE_NUMPAD) {
-            row.addView(modeButton("ABC", FN_BG, BOTTOM_H_DP) { switchMode("ABC") })
-            row.addView(modeButton("?123", FN_BG, BOTTOM_H_DP) { switchMode("?123") })
+            // 三列结构与上方数字大键行完全一致（每列 weight 1），保证 0 与 2/5/8 严格对齐：
+            // 左列 = ABC + ?123 并排，中列 = 0，右列 = 退格
+            val left = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                // 高度填满整行（内部按钮自带 3dp 垂直 margin 与 0/⌫ 对齐），
+                // 否则固定行高会容纳不下内部按钮的 margin，导致按钮偏下被裁切
+                layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f
+                ).apply { setMargins(dp(3), 0, dp(3), 0) }
+            }
+            left.addView(modeButton("ABC", FN_BG, BOTTOM_H_DP) { switchMode("ABC") })
+            left.addView(modeButton("?123", FN_BG, BOTTOM_H_DP) { switchMode("?123") })
+            row.addView(left)
             row.addView(
-                keyButton("0", 2.5f, KEY_BG, BOTTOM_H_DP) { commit("0") }.apply { textSize = 20f }
+                keyButton(shuffledDigits[9], 1f, KEY_BG, BOTTOM_H_DP) { commit(shuffledDigits[9]) }
+                    .apply { textSize = 20f }
             )
-            row.addView(backspaceButton(2.5f, big = true, heightDp = BOTTOM_H_DP))
+            row.addView(backspaceButton(1f, big = true, heightDp = BOTTOM_H_DP))
             return row
         }
         val (a, b, bBg) = when (mode) {
@@ -274,10 +287,13 @@ class MimaKeyboardService : InputMethodService() {
         keyboardLayout.addView(row)
     }
 
+    /** Shift 键三态视觉：关闭=深灰灰字 / 单次=靛蓝白字 / 锁定=白底深色加粗（高对比反转，不改键位尺寸） */
     private fun shiftButton(): Button {
-        val b = keyButton(
+        return keyButton(
             if (shiftState == SHIFT_LOCKED) "⇪" else "⇧",
-            1.5f, FN_BG, ROW_H_DP
+            1.5f,
+            if (shiftState == SHIFT_OFF) FN_BG else ACTIVE_BG,
+            ROW_H_DP
         ) {
             shiftState = when (shiftState) {
                 SHIFT_OFF -> SHIFT_ON
@@ -285,13 +301,24 @@ class MimaKeyboardService : InputMethodService() {
                 else -> SHIFT_OFF
             }
             buildKeyboard()
+        }.apply {
+            textSize = 24f
+            when (shiftState) {
+                SHIFT_OFF -> setTextColor(Color.rgb(200, 202, 208))
+                SHIFT_ON -> setTextColor(Color.WHITE)
+                else -> {
+                    // 锁定：白底深色加粗，与单次/关闭明显区分
+                    background = keyBackground(Color.WHITE)
+                    setTextColor(Color.rgb(28, 27, 31))
+                    paint.isFakeBoldText = true
+                }
+            }
         }
-        return if (shiftState != SHIFT_OFF) styleActive(b) else b
     }
 
     private fun letterButton(ch: String, weight: Float): Button {
         val label = if (shiftState == SHIFT_OFF) ch else ch.uppercase()
-        return keyButton(label, weight, KEY_BG, ROW_H_DP) { onKey(ch) }
+        return keyButton(label, weight, KEY_BG, ROW_H_DP) { onKey(ch) }.apply { textSize = 22f }
     }
 
     private fun symbolButton(s: String): Button =
