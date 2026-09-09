@@ -123,7 +123,7 @@
     <string name="create_new_vault_action">创建新密码本</string>
     <string name="create_vault_title">创建新密码本</string>
     <string name="create_vault_hint2">将在新位置创建一个空的密码本</string>
-    <string name="vault_name_convention_hint">文件名将以 “mm_” 开头，仅本应用创建的密码本才会被列出（便于跨手机互传识别）</string>
+    <string name="vault_name_convention_hint">文件名将以 “mm_” 开头（文件列表会显示所有 .kdbx 文件，包括其它应用创建的密码库）</string>
     <string name="password_optional">密码（可留空，表示无加密）</string>
     <string name="confirm_password_label">确认密码</string>
     <string name="passwords_mismatch">两次输入的密码不一致</string>

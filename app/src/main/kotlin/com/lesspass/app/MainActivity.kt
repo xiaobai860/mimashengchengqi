@@ -1025,8 +1025,8 @@ fun SettingsScreen(
     }
 
     // 处理不迁移操作 - 创建新密码本
-    // 文件名不再由用户输入，统一采用本应用约定名 mm_<机型>（createNewKdbxInFolder 的默认参数），
-    // 既能保证在本应用文件列表中可识别（仅列出 mm_*.kdbx），又便于跨手机互传后识别。
+    // 文件名不再由用户输入，统一采用本应用约定名 mm_<机型>（createNewKdbxInFolder 的默认参数）；
+    // 文件列表已放开为显示所有 .kdbx，该前缀仅用于创建命名约定与跨手机互传识别。
     fun performCreateNew(password: String) {
         val uri = pendingFolderUri ?: return
         // 创建涉及重型 KDF 派生与 SAF 文件写入，必须在后台线程执行，否则会阻塞 UI 线程触发 ANR，

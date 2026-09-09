@@ -123,7 +123,7 @@
     <string name="create_new_vault_action">Create New Password Book</string>
     <string name="create_vault_title">Create New Password Book</string>
     <string name="create_vault_hint2">An empty password book will be created at the new location</string>
-    <string name="vault_name_convention_hint">The file name will be prefixed with “mm_”; only password books created by this app are listed (so they are recognizable across devices)</string>
+    <string name="vault_name_convention_hint">The file name will be prefixed with “mm_” (all .kdbx files are listed, including those created by other apps)</string>
     <string name="password_optional">Password (can be left empty for no encryption)</string>
     <string name="confirm_password_label">Confirm Password</string>
     <string name="passwords_mismatch">The two passwords do not match</string>
