@@ -29,7 +29,6 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.lesspass.app.ui.theme.MimaShapes
-import com.lesspass.app.ui.theme.brandGradientBrush
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
@@ -96,7 +95,7 @@ fun PasswordBookScreen(
         }
 
         if (entries.isEmpty()) {
-            // 设计稿 .empty：大图标 + 引导文案
+            // 设计稿 .empty：品牌矢量插画 + 引导文案
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -104,26 +103,8 @@ fun PasswordBookScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(88.dp)
-                        .background(
-                            brandGradientBrush(
-                                MaterialTheme.colorScheme.primaryContainer,
-                                MaterialTheme.colorScheme.tertiaryContainer
-                            ),
-                            MimaShapes.chip
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Lock,
-                        contentDescription = null,
-                        modifier = Modifier.size(40.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+                VaultEmptyIllustration(modifier = Modifier.size(140.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = stringResource(R.string.vault_empty_hint),
                     style = MaterialTheme.typography.bodyMedium,

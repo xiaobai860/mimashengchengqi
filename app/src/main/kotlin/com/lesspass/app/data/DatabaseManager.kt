@@ -560,7 +560,7 @@ class DatabaseManager(private val context: Context) {
                 collectEntries(root, all)
                 all.size
             } ?: 0
-            Log.d("MimaDB", "saveDatabase: start, total entries in memory=$rootEntries, masterKey set=${db.masterKey != null}, kdfParams set=${db.kdfParameters != null}")
+            Log.d("MimaDB", "saveDatabase: start, total entries in memory=$rootEntries, kdfParams set=${db.kdfParameters != null}")
             // 根据当前打开的库来源落盘：URI 库写回 URI，本地库写回 dbFile
             val uri = currentOpenUri
             if (uri != null) {

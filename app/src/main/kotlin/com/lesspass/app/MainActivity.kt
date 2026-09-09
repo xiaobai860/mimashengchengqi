@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material3.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -893,6 +894,18 @@ fun GenerateScreen(
     }
 }
 
+/**
+ * 设置页组内细分隔线：比默认 divider 更轻，仅作子项分区，不喧宾夺主。
+ */
+@Composable
+private fun SettingsDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 10.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+        thickness = 1.dp
+    )
+}
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun SettingsScreen(
@@ -1067,9 +1080,11 @@ fun SettingsScreen(
                     }
                 }
 
+                SettingsDivider()
+
                 // 动态取色开关
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -1090,10 +1105,11 @@ fun SettingsScreen(
 
                 // 预设种子色板（动态取色关闭时生效）
                 if (!themeState.dynamicColor) {
+                    SettingsDivider()
                     Text(
                         stringResource(R.string.preset_palette),
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
+                        modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         PresetSeed.entries.forEach { preset ->
@@ -1369,6 +1385,7 @@ fun SettingsScreen(
                 Text(stringResource(R.string.file_count, kdbxFileList.size), style = MaterialTheme.typography.bodySmall)
                 Text(stringResource(R.string.version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(10.dp))
+                SettingsDivider()
 
                 // 文件列表
                 Log.d("MimaDB", "SettingsScreen render: kdbxFileList.size=${kdbxFileList.size}, displayPath=$displayPath")
@@ -1451,6 +1468,7 @@ fun SettingsScreen(
                 }
 
                 Spacer(Modifier.height(12.dp))
+                SettingsDivider()
                 // 清除所有数据
                 OutlinedButton(
                     onClick = { showClearDataDialog = true },
@@ -1468,75 +1486,107 @@ fun SettingsScreen(
             }
         }
 
-        // 修改密码
-        OutlinedButton(
-            onClick = { showChangePasswordDialog = true },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = MimaShapes.button
+        // ==================== 数据管理 ====================
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MimaShapes.card,
+            tonalElevation = 1.dp
         ) {
-            Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(if (dbManager.hasPassword) stringResource(R.string.change_kdbx_password) else stringResource(R.string.set_kdbx_password))
-        }
-
-        // 修改文件位置（自定义文件夹选择器，规避 FragmentActivity 的 requestCode 16 位限制）
-        OutlinedButton(
-            onClick = {
-                launchFolderPicker()
-            },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = MimaShapes.button
-        ) {
-            Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.modify_file_location))
-        }
-        moveError?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-        }
-
-        // 导出 KDBX 文件
-        OutlinedButton(
-            onClick = {
-                scope.launch(Dispatchers.IO) {
-                    try {
-                        val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
-                        val baos = java.io.ByteArrayOutputStream()
-                        dbManager.exportToOutputStream(baos)
-                        val bytes = baos.toByteArray()
-                        val tempFile = File.createTempFile("kdbx_export_", ".kdbx", context.cacheDir)
-                        tempFile.writeBytes(bytes)
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "application/octet-stream"
-                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                tempFile
-                            )
-                            putExtra(Intent.EXTRA_STREAM, fileUri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        withContext(Dispatchers.Main) {
-                            context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_kdbx)))
-                            exportError = null
-                        }
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            exportError = context.getString(R.string.export_failed, e.message ?: "")
-                        }
-                        e.printStackTrace()
-                    }
+            Column(modifier = Modifier.padding(14.dp)) {
+                // 区块小标题
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        stringResource(R.string.data_management),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = MimaShapes.button
-        ) {
-            Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.export_kdbx_dialog))
-        }
-        exportError?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
+
+                // 修改密码
+                OutlinedButton(
+                    onClick = { showChangePasswordDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = MimaShapes.button
+                ) {
+                    Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (dbManager.hasPassword) stringResource(R.string.change_kdbx_password) else stringResource(R.string.set_kdbx_password))
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // 修改文件位置（自定义文件夹选择器，规避 FragmentActivity 的 requestCode 16 位限制）
+                OutlinedButton(
+                    onClick = {
+                        launchFolderPicker()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = MimaShapes.button
+                ) {
+                    Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.modify_file_location))
+                }
+                moveError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // 导出 KDBX 文件
+                OutlinedButton(
+                    onClick = {
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                val db = dbManager.getDatabase() ?: throw IllegalStateException("数据库未解锁")
+                                val baos = java.io.ByteArrayOutputStream()
+                                dbManager.exportToOutputStream(baos)
+                                val bytes = baos.toByteArray()
+                                val tempFile = File.createTempFile("kdbx_export_", ".kdbx", context.cacheDir)
+                                tempFile.writeBytes(bytes)
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/octet-stream"
+                                    val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        tempFile
+                                    )
+                                    putExtra(Intent.EXTRA_STREAM, fileUri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                withContext(Dispatchers.Main) {
+                                    context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_kdbx)))
+                                    exportError = null
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    exportError = context.getString(R.string.export_failed, e.message ?: "")
+                                }
+                                e.printStackTrace()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = MimaShapes.button
+                ) {
+                    Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.export_kdbx_dialog))
+                }
+                exportError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+            }
         }
 
         // 密码本文件密码输入对话框
@@ -2133,7 +2183,7 @@ private fun iconForFinger(name: String): ImageVector {
         "fa-certificate" -> Icons.Filled.WorkspacePremium
         "fa-coffee" -> Icons.Filled.Coffee
         "fa-cloud" -> Icons.Filled.Cloud
-        "fa-comment" -> Icons.Filled.Comment
+        "fa-comment" -> Icons.AutoMirrored.Filled.Comment
         "fa-cube" -> Icons.Filled.ViewInAr
         "fa-cutlery" -> Icons.Filled.Restaurant
         "fa-database" -> Icons.Filled.Storage

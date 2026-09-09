@@ -25,7 +25,6 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.lesspass.app.ui.theme.MimaShapes
-import com.lesspass.app.ui.theme.brandGradientBrush
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -52,32 +51,14 @@ fun HistoryScreen(
     }
 
     if (entries.isEmpty()) {
-        // 设计稿 .empty：大图标 + 引导文案，降低迷失感（取代原先单行纯文字）
+        // 设计稿 .empty：品牌矢量插画 + 引导文案，降低迷失感（取代原先单行纯文字）
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(88.dp)
-                    .background(
-                        brandGradientBrush(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        ),
-                        MimaShapes.chip
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.History,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+            HistoryEmptyIllustration(modifier = Modifier.size(140.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = stringResource(R.string.history_empty),
                 style = MaterialTheme.typography.bodyMedium,

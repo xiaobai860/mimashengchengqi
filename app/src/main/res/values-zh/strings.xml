@@ -92,6 +92,7 @@
     <string name="fingerprint_enabled_toast">已为当前密码本启用指纹解锁</string>
     <string name="fingerprint_cleared_toast">已清除指纹解锁</string>
     <string name="vault_status">密码本状态</string>
+    <string name="data_management">数据管理</string>
     <string name="refresh">刷新</string>
     <string name="refresh_desc">刷新</string>
     <string name="file_path">文件路径: %1$s</string>
