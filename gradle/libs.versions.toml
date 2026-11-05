@@ -1,7 +1,7 @@
 [versions]
 # AGP 9.x：新 DSL + 内置 Kotlin（KGP 2.2.10）为默认，项目已完成迁移，
 # 不再使用 kotlin-android 插件。Gradle 9.5.0 / JDK 17+ / Build Tools 36。
-agp = "9.3.0"
+agp = "9.5.0"
 kotlin = "2.2.10"
 coreKtx = "1.15.0"
 documentfile = "1.1.0"
